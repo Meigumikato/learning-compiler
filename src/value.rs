@@ -75,7 +75,7 @@ impl Add<Literal> for Literal {
     }
 }
 
-impl Eq for Literal {}
+// impl Eq for Literal {}
 
 impl PartialEq for Literal {
     fn eq(&self, other: &Self) -> bool {

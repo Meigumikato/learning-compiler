@@ -8,12 +8,6 @@ mod value;
 
 use crate::parser::Parser;
 use crate::scanner::Scanner;
-// use crate::token::Token;
-
-// fn run_test(script: &String) -> Vec<Token> {
-//     let scanner = Scanner::new(script.clone());
-//     scanner.scan_tokens()
-// }
 
 fn run(script: &String) {
     let scanner = Scanner::new(script.clone());

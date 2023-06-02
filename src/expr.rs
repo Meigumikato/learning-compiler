@@ -1,6 +1,7 @@
 use crate::token::{Token, TokenType};
-
 use crate::value::Literal;
+
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 #[derive(Debug)]
@@ -53,7 +54,7 @@ pub trait ExprVisitor<T> {
 
 pub struct AstPrintVisitor;
 pub struct RNPPrintVistior {
-    pub stack: VecDeque<String>,
+    pub stack: RefCell<VecDeque<String>>,
     pub expr: String,
 }
 pub struct Interpreter;
@@ -158,20 +159,20 @@ impl ExprVisitor<String> for AstPrintVisitor {
 }
 
 impl ExprVisitor<()> for RNPPrintVistior {
-    fn visit_expr(&mut self, expr: &Expr) {
+    fn visit_expr(&self, expr: &Expr) {
         match expr {
             Expr::Literal(l) => match l {
                 Literal::Nil => {
-                    self.stack.push_back("nil".to_string());
+                    self.stack.borrow_mut().push_back("nil".to_string());
                 }
                 Literal::String(s) => {
-                    self.stack.push_back(s.clone());
+                    self.stack.borrow_mut().push_back(s.clone());
                 }
                 Literal::Double(d) => {
-                    self.stack.push_back(format!("{}", d));
+                    self.stack.borrow_mut().push_back(format!("{}", d));
                 }
                 Literal::Boolean(b) => {
-                    self.stack.push_back(format!("{}", b));
+                    self.stack.borrow_mut().push_back(format!("{}", b));
                 }
             },
             Expr::Group(g) => self.visit_group(g),
@@ -187,16 +188,12 @@ impl ExprVisitor<()> for RNPPrintVistior {
     }
 
     fn visit_binary(&self, binary: &Binary) {
-        // format!(
-        //     "( {} {} {} )",
         self.visit_expr(&binary.lhs);
+
         self.visit_expr(&binary.rhs);
-        //     binary.operator.lexeme,
-        // )
     }
 
     fn visit_group(&self, group: &Group) {
-        // format!("(group {} )",
         self.visit_expr(&group.expr);
     }
 
