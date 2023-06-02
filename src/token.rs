@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -10,8 +10,10 @@ pub enum TokenType {
     Minus,
     Plus,
     Semicolon,
+    Colon,
     Slash,
     Star,
+    QuestionMark,
     // One or two character tokens.
     Bang,
     BangEqual,
@@ -46,19 +48,20 @@ pub enum TokenType {
     Eof,
 }
 
+#[derive(Debug, Clone)]
 pub enum Literal {
-    None,
+    Nil,
     String(String),
     Double(f64),
-    // Vec(Vec<i32>),
+    Boolean(bool), // Vec(Vec<i32>),
 }
 
-// #[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
-    literal: Literal,
-    lexeme: String,
-    line: usize,
+    pub token_type: TokenType,
+    pub literal: Literal,
+    pub lexeme: String,
+    pub line: usize,
 }
 
 impl Token {
