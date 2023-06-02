@@ -1,5 +1,6 @@
 use crate::expr::{Binary, Expr, Group, Unary};
-use crate::token::{Literal, Token, TokenType};
+use crate::token::{Token, TokenType};
+use crate::value::Literal;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -190,20 +191,20 @@ impl Parser {
     }
 
     /// ternary       -> ( ( ( ternary "?" ) * ) | ( ( ternary ":") * ) )  * expression ;
-    fn ternary(&mut self) -> Expr {
-        let expr = self.ternary();
-
-        use TokenType::*;
-        while self.match_token(&[QuestionMark]) {
-            let expr = self.ternary();
-        }
-
-        while self.match_token(&[Colon]) {
-            let expr = self.ternary();
-        }
-
-        expr
-    }
+    // fn ternary(&mut self) -> Expr {
+    //     let expr = self.ternary();
+    //
+    //     use TokenType::*;
+    //     while self.match_token(&[QuestionMark]) {
+    //         let expr = self.ternary();
+    //     }
+    //
+    //     while self.match_token(&[Colon]) {
+    //         let expr = self.ternary();
+    //     }
+    //
+    //     expr
+    // }
 
     /// expression     → equality ;
     fn expression(&mut self) -> Expr {

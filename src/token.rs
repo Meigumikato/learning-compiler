@@ -1,3 +1,5 @@
+use crate::value::Literal;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens.
@@ -46,14 +48,6 @@ pub enum TokenType {
     While,
 
     Eof,
-}
-
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Nil,
-    String(String),
-    Double(f64),
-    Boolean(bool), // Vec(Vec<i32>),
 }
 
 #[derive(Debug, Clone)]

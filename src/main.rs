@@ -4,6 +4,7 @@ mod expr;
 mod parser;
 mod scanner;
 mod token;
+mod value;
 
 use crate::parser::Parser;
 use crate::scanner::Scanner;
@@ -106,18 +107,33 @@ mod test {
 
     #[test]
     fn parser_expressions() {
-        use crate::expr::AstPrintVisitor;
-        let script = include_str!("../test/expressions/parse.lox");
-        let scanner = Scanner::new(script.to_string());
-        let tokens = scanner.scan_tokens();
+        use crate::expr::{AstPrintVisitor, Interpreter, RNPPrintVistior};
 
-        let mut parser = Parser::new(tokens);
+        // let script = include_str!("../test/expressions/parse.lox");
+        // let script = "5 * 10 - ((2 + 8) - (3 - 2)) / 4 + \"rqwe\" ";
+        let script = [
+            "\"rqwe\"  + 100",
+            "false == (2 == 3)",
+            "3 + 5 + 6 / 3",
+            "nil == 3",
+            "nil == nil",
+        ];
 
-        let printer = AstPrintVisitor::new();
+        for s in script {
+            let scanner = Scanner::new(s.to_string());
+            let expr = Parser::new(scanner.scan_tokens()).parse();
 
-        // "group (Double(5.0)-group (Double(3.0)-Double(1.0)))+-Double(1.0)"
-        let str_expr = printer.visit_expr(&parser.parse());
+            let printer = AstPrintVisitor {};
+            let str_expr = printer.visit_expr(&expr);
+            println!("{}", str_expr);
 
-        println!("{}", str_expr);
+            let rnp_printer = RNPPrintVistior {};
+            let rnp_expr = rnp_printer.visit_expr(&expr);
+            println!("RNP {}", rnp_expr);
+
+            let interpreter = Interpreter {};
+            let value = interpreter.visit_expr(&expr);
+            println!("expr={} result={:?}", s, value);
+        }
     }
 }

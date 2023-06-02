@@ -1,4 +1,5 @@
-use crate::token::{Literal, Token, TokenType};
+use crate::token::{Token, TokenType};
+use crate::value::Literal;
 use std::collections::HashMap;
 
 fn report(line: usize, where_error: String, message: &str) {
@@ -16,6 +17,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
 
     key_words: HashMap<&'static str, TokenType>,
 }
@@ -28,6 +30,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            column: 0,
             key_words: HashMap::new(),
         };
 
@@ -78,6 +81,7 @@ impl Scanner {
     fn advance(&mut self) -> char {
         let temp = self.current;
         self.current += 1;
+        self.column += 1;
         self.source.chars().nth(temp).unwrap()
     }
 
@@ -239,7 +243,10 @@ impl Scanner {
                 // skip
             }
 
-            '\n' => self.line += 1,
+            '\n' => {
+                self.line += 1;
+                self.column = 0;
+            }
 
             '"' => self.string(),
 
