@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenType};
-use crate::value::Literal;
+use crate::value::Value;
 use std::collections::HashMap;
 
 fn report(line: usize, where_error: String, message: &str) {
@@ -10,6 +10,7 @@ fn error(line: usize, message: &str) {
     report(line, "".to_string(), message)
 }
 
+// #[derive(Debug)]
 pub struct Scanner {
     source: String,
     tokens: Vec<Token>,
@@ -23,9 +24,9 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(source: String) -> Self {
+    pub fn new() -> Self {
         let mut scanner = Self {
-            source,
+            source: String::new(),
             tokens: Vec::new(),
             start: 0,
             current: 0,
@@ -62,7 +63,14 @@ impl Scanner {
         self.current >= self.source.len()
     }
 
-    pub fn scan_tokens(mut self) -> Vec<Token> {
+    pub fn scan_tokens(&mut self, script: &str) -> Vec<Token> {
+        self.source = script.to_owned();
+        self.tokens.clear();
+        self.start = 0;
+        self.current = 0;
+        self.line = 1;
+        self.column = 0;
+
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token();
@@ -70,12 +78,12 @@ impl Scanner {
 
         self.tokens.push(Token::new(
             TokenType::Eof,
-            Literal::Nil,
+            Value::Nil,
             "".to_string(),
             self.line,
         ));
 
-        self.tokens
+        self.tokens.clone()
     }
 
     fn advance(&mut self) -> char {
@@ -86,10 +94,10 @@ impl Scanner {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_with_literal(token_type, Literal::Nil)
+        self.add_token_with_literal(token_type, Value::Nil)
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: Literal) {
+    fn add_token_with_literal(&mut self, token_type: TokenType, literal: Value) {
         self.tokens.push(Token::new(
             token_type,
             literal,
@@ -155,7 +163,7 @@ impl Scanner {
         // consume closeing "
         self.advance();
         let literal =
-            Literal::String(self.substring(self.start + 1, self.current - self.start - 1));
+            Value::String(self.substring(self.start + 1, self.current - (self.start + 1) - 1));
 
         self.add_token_with_literal(TokenType::String, literal)
     }
@@ -174,7 +182,7 @@ impl Scanner {
             }
         }
 
-        let literal = Literal::Double(
+        let literal = Value::Double(
             self.substring(self.start, self.current - self.start)
                 .parse::<f64>()
                 .expect("parse to f64 failed"),
@@ -230,9 +238,16 @@ impl Scanner {
             '>' if self.match_char('=') => self.add_token(TokenType::GreaterEqual),
             '>' => self.add_token(TokenType::Greater),
 
-            // comment consume
+            // single line comment consume
             '/' if self.match_char('/') => {
                 while !self.is_at_end() && self.peek() != '\n' {
+                    self.advance();
+                }
+            }
+
+            // multi line comment consume
+            '/' if self.match_char('*') => {
+                while !self.is_at_end() && self.peek() != '*' && self.peek_next() != '/' {
                     self.advance();
                 }
             }
@@ -258,6 +273,5 @@ impl Scanner {
                 error(self.line, "Unexpected character");
             }
         }
-        // }
     }
 }

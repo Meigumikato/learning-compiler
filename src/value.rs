@@ -1,26 +1,81 @@
+use dyn_clone::DynClone;
+
+use crate::stmt::statement::FunStmt;
+use crate::Interpreter;
+use std::any::Any;
 use std::cmp::Ordering::*;
-use std::cmp::{Eq, PartialEq, PartialOrd};
+use std::cmp::{PartialEq, PartialOrd};
 use std::ops::{Add, Div, Mul, Neg, Not, Sub};
 
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Nil,
-    String(String),
-    Double(f64),
-    Boolean(bool),
+pub trait Callable: DynClone {
+    fn call(&mut self, interpreter: &mut Interpreter, arguments: Vec<Value>) -> Value;
+    fn arity(&self) -> usize;
 }
 
-impl Neg for Literal {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        match self {
-            Self::Double(d) => Self::Double(-d),
-            _ => panic!("unsupported to neg {:?}", self),
+dyn_clone::clone_trait_object!(Callable);
+
+#[derive(Clone)]
+pub struct Function {
+    declaration: FunStmt,
+}
+
+impl Function {
+    pub fn new(fun_stmt: FunStmt) -> Self {
+        Self {
+            declaration: fun_stmt,
         }
     }
 }
 
-impl Not for Literal {
+impl Callable for Function {
+    fn call(&mut self, interpreter: &mut Interpreter, arguments: Vec<Value>) -> Value {
+        interpreter.execute_function(arguments, &mut self.declaration);
+        Value::Nil
+    }
+
+    fn arity(&self) -> usize {
+        self.declaration.parameters.len()
+    }
+}
+
+#[derive(Clone)]
+pub enum Value {
+    Nil,
+    String(String),
+    Double(f64),
+    Boolean(bool),
+    Function(Box<dyn Callable>),
+}
+
+impl Value {
+    pub fn stringify(&self) -> String {
+        match self {
+            Self::Nil => "nil".to_owned(),
+            Self::String(s) => s.clone(),
+            Self::Double(d) => {
+                format!("{}", d)
+            }
+            Self::Boolean(b) => format!("{}", b),
+            Value::Function(_) => todo!(),
+        }
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        !matches!(self, Self::Nil | Self::Boolean(false))
+    }
+}
+
+impl Neg for Value {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        match self {
+            Self::Double(d) => Self::Double(-d),
+            _ => panic!("unsupported to neg {:?}", self.stringify()),
+        }
+    }
+}
+
+impl Not for Value {
     type Output = Self;
     fn not(self) -> Self::Output {
         match self {
@@ -30,39 +85,51 @@ impl Not for Literal {
     }
 }
 
-impl Mul<Literal> for Literal {
+impl Mul<Value> for Value {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
             (Self::Double(a), Self::Double(b)) => Self::Double(a * b),
-            (_, _) => panic!("literal cannot to mul {:?} with {:?}", self, rhs),
+            (_, _) => panic!(
+                "literal cannot to mul {:?} with {:?}",
+                self.stringify(),
+                rhs.stringify()
+            ),
         }
     }
 }
-impl Div<Literal> for Literal {
+impl Div<Value> for Value {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
             (Self::Double(a), Self::Double(b)) => Self::Double(a / b),
-            (_, _) => panic!("unsupported to div {:?} with {:?}", self, rhs),
+            (_, _) => panic!(
+                "unsupported to div {:?} with {:?}",
+                self.stringify(),
+                rhs.stringify()
+            ),
         }
     }
 }
 //
-impl Sub<Literal> for Literal {
+impl Sub<Value> for Value {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
             (Self::Double(a), Self::Double(b)) => Self::Double(a - b),
-            (_, _) => panic!("unsupported to sub {:?} with {:?}", self, rhs),
+            (_, _) => panic!(
+                "unsupported to sub {:?} with {:?}",
+                self.stringify(),
+                rhs.stringify()
+            ),
         }
     }
 }
 //
-impl Add<Literal> for Literal {
+impl Add<Value> for Value {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -70,14 +137,18 @@ impl Add<Literal> for Literal {
             (Self::String(a), Self::String(b)) => Self::String(format!("{}{}", a, b)),
             (Self::String(a), Self::Double(b)) => Self::String(format!("{}{}", a, b)),
             (Self::Double(a), Self::Double(b)) => Self::Double(a + b),
-            (_, _) => panic!("unsupported to add {:?} with {:?}", self, rhs),
+            (_, _) => panic!(
+                "unsupported to add {} with {}",
+                self.stringify(),
+                rhs.stringify()
+            ),
         }
     }
 }
 
 // impl Eq for Literal {}
 
-impl PartialEq for Literal {
+impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Nil, Self::Nil) => true,
@@ -92,7 +163,7 @@ impl PartialEq for Literal {
 
 // impl Ord for Literal {}
 
-impl PartialOrd for Literal {
+impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
             (Self::Nil, Self::Nil) => Some(Equal),

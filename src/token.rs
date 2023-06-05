@@ -1,4 +1,4 @@
-use crate::value::Literal;
+use crate::value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -50,16 +50,16 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Token {
     pub token_type: TokenType,
-    pub literal: Literal,
+    pub literal: Value,
     pub lexeme: String,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, literal: Literal, lexeme: String, line: usize) -> Self {
+    pub fn new(token_type: TokenType, literal: Value, lexeme: String, line: usize) -> Self {
         Self {
             token_type,
             literal,
