@@ -4,7 +4,7 @@ use crate::expr::expression::*;
 use crate::stmt::statement::*;
 
 use crate::token::{Token, TokenType};
-use crate::value::Value;
+use crate::value::{LoxValue, Value};
 
 use thiserror::Error;
 
@@ -62,9 +62,9 @@ impl Parser {
         self.previous()
     }
 
-    fn consume(&mut self, token_type: TokenType) -> Token {
+    fn consume(&mut self, token_type: TokenType, err_msg: &str) -> Token {
         if self.peek().token_type != token_type {
-            panic!("consume {:?} failed ", token_type);
+            panic!("{:?}", err_msg);
         } else {
             self.advance();
             self.previous().clone()
@@ -90,18 +90,18 @@ impl Parser {
         false
     }
 
-    /// primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+    /// primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | identifier ;
     fn primary(&mut self) -> Result<Expr, GrammerError> {
         use TokenType::*;
 
         match self.peek().token_type {
             True => {
                 self.advance();
-                Ok(Expr::Literal(Value::Boolean(true)))
+                Ok(Expr::Literal(LoxValue::new(Value::Boolean(true))))
             }
             False => {
                 self.advance();
-                Ok(Expr::Literal(Value::Boolean(false)))
+                Ok(Expr::Literal(LoxValue::new(Value::Boolean(false))))
             }
 
             String | Number => {
@@ -110,7 +110,7 @@ impl Parser {
             }
             Nil => {
                 self.advance();
-                Ok(Expr::Literal(Value::Nil))
+                Ok(Expr::Literal(LoxValue::new(Value::Nil)))
             }
             LeftParen => {
                 // consume LeftParen
@@ -120,7 +120,7 @@ impl Parser {
                     expr: Box::new(self.expression()?),
                 });
 
-                self.consume(RightParen);
+                self.consume(RightParen, "Group Expr missing RightParen");
 
                 Ok(expr)
             }
@@ -140,20 +140,26 @@ impl Parser {
     fn finish_call(&mut self, callee: Expr) -> Result<Expr, GrammerError> {
         let mut arguments = vec![];
         if !self.check(&TokenType::RightParen) {
-            loop {
-                if arguments.len() > 250 {
-                    panic!("too many arguments")
-                }
+            // loop {
 
-                arguments.push(self.expression()?);
+            let expr = self.expression()?;
 
-                if !self.match_token(&[TokenType::Comma]) {
-                    break;
+            match expr {
+                Expr::Comma(comma) => {
+                    if comma.internal.len() > 250 {
+                        panic!("too many arguments")
+                    } else {
+                        arguments = comma.internal;
+                    }
                 }
+                _ => arguments.push(expr),
             }
         }
 
-        let token = self.consume(TokenType::RightParen);
+        let token = self.consume(
+            TokenType::RightParen,
+            "Function Call Expr Missing RightParen",
+        );
 
         Ok(Expr::Call(Call {
             callee: Box::new(callee),
@@ -199,42 +205,15 @@ impl Parser {
         }
     }
 
-    /// ternary       ->  unary ("?" expression ":" expression) * ;
-    fn ternary(&mut self) -> Result<Expr, GrammerError> {
-        let mut expr = self.unary()?;
-
-        use TokenType::*;
-        while self.match_token(&[QuestionMark]) {
-            let lhs = self.expression();
-            if lhs.is_err() {
-                return Err(GrammerError::TenaryErr);
-            }
-
-            self.consume(TokenType::Colon);
-
-            let rhs = self.expression();
-            if rhs.is_err() {
-                return Err(GrammerError::TenaryErr);
-            }
-
-            expr = Expr::Ternary(Ternary {
-                cond: Box::new(expr),
-                lhs: Box::new(lhs.unwrap()),
-                rhs: Box::new(rhs.unwrap()),
-            });
-        }
-        Ok(expr)
-    }
-
-    /// factor         → ternary ( ( "/" | "*" ) ternary )* ;
+    /// factor         → unary ( ( "/" | "*" ) unary )* ;
     fn factor(&mut self) -> Result<Expr, GrammerError> {
-        let mut expr = self.ternary()?;
+        let mut expr = self.unary()?;
 
         use TokenType::*;
 
         while self.match_token(&[Slash, Star]) {
             let operator = self.previous().clone();
-            if let Ok(right) = self.ternary() {
+            if let Ok(right) = self.unary() {
                 expr = Expr::Binary(Binary {
                     operator,
                     lhs: Box::new(expr),
@@ -368,30 +347,57 @@ impl Parser {
         Ok(expr)
     }
 
-    /// comma_expr ->  assignment ("," assignment) * ;
-    fn comma_expr(&mut self) -> Result<Expr, GrammerError> {
+    /// ternary       ->  assignment ("?" expression ":" expression) * ;
+    fn ternary(&mut self) -> Result<Expr, GrammerError> {
         let mut expr = self.assignment()?;
 
         use TokenType::*;
-        while self.match_token(&[Comma]) {
-            let operator = self.previous().clone();
-
-            if let Ok(next) = self.assignment() {
-                expr = Expr::Binary(Binary {
-                    operator,
-                    lhs: Box::new(expr),
-                    rhs: Box::new(next),
-                });
-            } else {
-                return Err(GrammerError::BinaryErr);
+        while self.match_token(&[QuestionMark]) {
+            let lhs = self.expression();
+            if lhs.is_err() {
+                return Err(GrammerError::TenaryErr);
             }
+
+            self.consume(TokenType::Colon, "Ternary Expr Missing Colon");
+
+            let rhs = self.expression();
+            if rhs.is_err() {
+                return Err(GrammerError::TenaryErr);
+            }
+
+            expr = Expr::Ternary(Ternary {
+                cond: Box::new(expr),
+                lhs: Box::new(lhs.unwrap()),
+                rhs: Box::new(rhs.unwrap()),
+            });
         }
+        Ok(expr)
+    }
+
+    /// comma_expr ->  ternary ("," ternary) * ;
+    fn comma_expr(&mut self) -> Result<Expr, GrammerError> {
+        let mut expr = self.ternary()?;
+
+        let mut expressions = vec![];
+        if self.match_token(&[TokenType::Comma]) {
+            expressions.push(expr);
+            loop {
+                expressions.push(self.ternary()?);
+                if !self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+            expr = Expr::Comma(Comma {
+                internal: expressions,
+            });
+        }
+
         Ok(expr)
     }
 
     /// expression     → comma_expr ;
     fn expression(&mut self) -> Result<Expr, GrammerError> {
-        self.assignment()
+        self.comma_expr()
     }
 
     // ----------------------------------------------------------
@@ -401,7 +407,10 @@ impl Parser {
     fn expression_stmt(&mut self) -> Result<Stmt, GrammerError> {
         let expr = self.expression();
         if let Ok(expr) = expr {
-            self.consume(TokenType::Semicolon);
+            self.consume(
+                TokenType::Semicolon,
+                "Expression Statement Missing Semicolon",
+            );
 
             Ok(Stmt::Expr(ExprStmt { expr }))
         } else {
@@ -413,7 +422,7 @@ impl Parser {
     fn print_stmt(&mut self) -> Result<Stmt, GrammerError> {
         let expr = self.expression();
         if let Ok(expr) = expr {
-            self.consume(TokenType::Semicolon);
+            self.consume(TokenType::Semicolon, "Print Stmt Missing Semicolon");
 
             Ok(Stmt::Print(PrintStmt { expr }))
         } else {
@@ -428,16 +437,16 @@ impl Parser {
             statements.push(self.declaration()?);
         }
 
-        self.consume(TokenType::RightBrace);
+        self.consume(TokenType::RightBrace, "Block Stmt Missing RightBrace");
 
         Ok(statements)
     }
 
     /// ifStmt -> "if" statement ( "else" statement) ? ;
     fn ifstmt(&mut self) -> Result<Stmt, GrammerError> {
-        self.consume(TokenType::LeftParen);
+        self.consume(TokenType::LeftParen, "If Stmt Missing LeftParen");
         let cond = self.expression()?;
-        self.consume(TokenType::RightParen);
+        self.consume(TokenType::RightParen, "If Stmt Missing RightParen");
 
         let then_branch = self.statement()?;
         let mut else_branch = None;
@@ -455,14 +464,14 @@ impl Parser {
 
     /// while -> "while" "(" expression ")" statement | ";" ;
     fn while_stmt(&mut self) -> Result<Stmt, GrammerError> {
-        self.consume(TokenType::LeftParen);
+        self.consume(TokenType::LeftParen, "While Stmt Missing cond LeftParen");
         let cond = self.expression()?;
-        self.consume(TokenType::RightParen);
+        self.consume(TokenType::RightParen, "While Stmt Missing cond RightParen");
 
         if self.match_token(&[TokenType::Semicolon]) {
-            Ok(Stmt::WhileStmt(WhileStmt { cond, body: None }))
+            Ok(Stmt::While(WhileStmt { cond, body: None }))
         } else {
-            Ok(Stmt::WhileStmt(WhileStmt {
+            Ok(Stmt::While(WhileStmt {
                 cond,
                 body: Some(Box::new(self.statement()?)),
             }))
@@ -471,7 +480,7 @@ impl Parser {
 
     /// forStmt -> "for" "(" varDecl | expression_stmt | ";" expression? ";" expression? ")" statement
     fn for_stmt(&mut self) -> Result<Stmt, GrammerError> {
-        self.consume(TokenType::LeftParen);
+        self.consume(TokenType::LeftParen, "For Stmt Missing LeftParen");
 
         let initializer;
         if self.match_token(&[TokenType::Var]) {
@@ -487,14 +496,14 @@ impl Parser {
             condition = Some(cond);
         }
 
-        self.consume(TokenType::Semicolon);
+        self.consume(TokenType::Semicolon, "For Stmt Missing Second Semicolon");
 
         let mut increment = None;
         if let Ok(inc) = self.expression() {
             increment = Some(inc);
         }
 
-        self.consume(TokenType::RightParen);
+        self.consume(TokenType::RightParen, "For Stmt Missing RightParen");
 
         let mut body = None;
         if !self.match_token(&[TokenType::Semicolon]) {
@@ -521,11 +530,11 @@ impl Parser {
             }))
         }
 
-        desugaring = Some(Stmt::WhileStmt(WhileStmt {
+        desugaring = Some(Stmt::While(WhileStmt {
             cond: if let Some(cond) = condition {
                 cond
             } else {
-                Expr::Literal(Value::Boolean(true))
+                Expr::Literal(LoxValue::new(Value::Boolean(true)))
             },
             body: desugaring.map(Box::new),
         }));
@@ -539,7 +548,29 @@ impl Parser {
         Ok(desugaring.unwrap())
     }
 
-    /// statement -> exprStmt | printStmt | block | ifStmt | whileStmt | forStmt ;
+    /// breakStmt -> break ";" ;
+    fn break_stmt(&mut self) -> Result<Stmt, GrammerError> {
+        self.consume(TokenType::Semicolon, "Break Stmt Missing Semicolon");
+        Ok(Stmt::Break(BreakStmt {}))
+    }
+
+    /// returnStmt -> return expression? ";" ;
+    fn return_stmt(&mut self) -> Result<Stmt, GrammerError> {
+        let expr = self.expression();
+
+        let return_stmt;
+        if let Ok(e) = expr {
+            return_stmt = Stmt::Return(ReturnStmt { expr: Some(e) });
+        } else {
+            return_stmt = Stmt::Return(ReturnStmt { expr: None })
+        }
+
+        self.consume(TokenType::Semicolon, "Return Stmt Missing Semicolon");
+
+        Ok(return_stmt)
+    }
+
+    /// statement -> exprStmt | printStmt | block | ifStmt | whileStmt | forStmt | breakStmt | returnStmt ;
     fn statement(&mut self) -> Result<Stmt, GrammerError> {
         match self.peek().token_type {
             TokenType::If => {
@@ -558,6 +589,16 @@ impl Parser {
                 self.advance();
                 self.print_stmt()
             }
+
+            TokenType::Break => {
+                self.advance();
+                self.break_stmt()
+            }
+
+            TokenType::Return => {
+                self.advance();
+                self.return_stmt()
+            }
             TokenType::LeftBrace => {
                 self.advance();
                 Ok(Stmt::Block(BlockStmt {
@@ -570,14 +611,14 @@ impl Parser {
 
     /// varDecl ->  "var" identifier ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, GrammerError> {
-        let token = self.consume(TokenType::Identifier);
+        let token = self.consume(TokenType::Identifier, "Var Declaration Missing identifier");
 
         let mut initializer = Expr::Nil;
         if self.match_token(&[TokenType::Equal]) {
             initializer = self.expression()?;
         }
 
-        self.consume(TokenType::Semicolon);
+        self.consume(TokenType::Semicolon, "Var Declaration Missing Semicolon");
 
         Ok(Stmt::Var(VarStmt { token, initializer }))
     }
@@ -585,9 +626,9 @@ impl Parser {
     /// fun Decl -> "fun" "(" parameters? ")" block ;
     /// parameters -> identifier ("," identifier) * ;
     fn fun_declaration(&mut self, _: &str) -> Result<Stmt, GrammerError> {
-        let name = self.consume(TokenType::Identifier);
+        let name = self.consume(TokenType::Identifier, "Fun Declaration Missing Identifier");
 
-        self.consume(TokenType::LeftParen);
+        self.consume(TokenType::LeftParen, "Fun Declaration Missing LeftParen");
 
         let mut parameters = vec![];
         if !self.check(&TokenType::RightParen) {
@@ -596,7 +637,10 @@ impl Parser {
                     panic!("fun_declaration has too many parameters")
                 }
 
-                let identifier = self.consume(TokenType::Identifier);
+                let identifier = self.consume(
+                    TokenType::Identifier,
+                    "Fun Declaration Parameters Is not Identifier",
+                );
                 parameters.push(identifier);
 
                 if !self.match_token(&[TokenType::Comma]) {
@@ -605,13 +649,16 @@ impl Parser {
             }
         }
 
-        self.consume(TokenType::RightParen);
+        self.consume(TokenType::RightParen, "Fun Declaration Missing RightParen");
 
         // function body
-        self.consume(TokenType::LeftBrace);
+        self.consume(
+            TokenType::LeftBrace,
+            "Fun Declaration Block Missing LeftBrace",
+        );
         let body = self.block()?;
 
-        Ok(Stmt::FunStmt(FunStmt {
+        Ok(Stmt::Fun(FunStmt {
             name,
             parameters,
             block: body,

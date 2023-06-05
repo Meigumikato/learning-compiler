@@ -10,7 +10,7 @@ impl AstPrinterVisitor {
 }
 
 impl ExprVisitor<String> for AstPrinterVisitor {
-    fn visit_expr(&mut self, expr: &Expr) -> String {
+    fn visit_expr(&self, expr: &Expr) -> String {
         match expr {
             Expr::Nil => todo!(),
             Expr::Literal(l) => l.stringify(),
@@ -22,14 +22,15 @@ impl ExprVisitor<String> for AstPrinterVisitor {
             Expr::Assign(_) => todo!(),
             Expr::Logic(_) => todo!(),
             Expr::Call(_) => todo!(),
+            Expr::Comma(_) => todo!(),
         }
     }
 
-    fn visit_unary(&mut self, unary: &Unary) -> String {
+    fn visit_unary(&self, unary: &Unary) -> String {
         format!("{}{}", unary.operator.lexeme, self.visit_expr(&unary.expr))
     }
 
-    fn visit_binary(&mut self, binary: &Binary) -> String {
+    fn visit_binary(&self, binary: &Binary) -> String {
         format!(
             "( {} {} {} )",
             binary.operator.lexeme,
@@ -38,11 +39,11 @@ impl ExprVisitor<String> for AstPrinterVisitor {
         )
     }
 
-    fn visit_group(&mut self, group: &Group) -> String {
+    fn visit_group(&self, group: &Group) -> String {
         format!("(group {} )", self.visit_expr(&group.expr))
     }
 
-    fn visit_ternary(&mut self, ternary: &Ternary) -> String {
+    fn visit_ternary(&self, ternary: &Ternary) -> String {
         format!(
             "( {} ? {} : {} )",
             self.visit_expr(&ternary.cond),
@@ -51,19 +52,19 @@ impl ExprVisitor<String> for AstPrinterVisitor {
         )
     }
 
-    fn visit_variable(&mut self, variable: &Variable) -> String {
+    fn visit_variable(&self, variable: &Variable) -> String {
         variable.name.lexeme.to_string()
     }
 
-    fn visit_assign(&mut self, _: &Assign) -> String {
+    fn visit_assign(&self, _: &Assign) -> String {
         todo!()
     }
 
-    fn visit_logic(&mut self, _logic: &Logic) -> String {
+    fn visit_logic(&self, _logic: &Logic) -> String {
         todo!()
     }
 
-    fn visit_call(&mut self, _fun: &Call) -> String {
+    fn visit_call(&self, _fun: &Call) -> String {
         todo!()
     }
 }

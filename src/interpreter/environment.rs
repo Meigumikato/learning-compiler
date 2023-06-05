@@ -1,11 +1,11 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::value::Value;
+use crate::value::LoxValue;
 
 #[derive(Clone)]
 pub struct Environment {
     enclosing: Option<Rc<RefCell<Environment>>>,
-    values: HashMap<String, Value>,
+    values: HashMap<String, LoxValue>,
 }
 
 impl Environment {
@@ -22,11 +22,11 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: &str, value: &Value) {
+    pub fn define(&mut self, name: &str, value: &LoxValue) {
         self.values.insert(name.to_owned(), value.clone());
     }
 
-    pub fn get(&self, name: &str) -> Value {
+    pub fn get(&self, name: &str) -> LoxValue {
         if let Some(value) = self.values.get(name) {
             return value.clone();
         }
@@ -38,7 +38,7 @@ impl Environment {
         panic!("Undefined varibale '{}'", name);
     }
 
-    pub fn assign(&mut self, name: &str, value: &Value) {
+    pub fn assign(&mut self, name: &str, value: &LoxValue) {
         if self.values.contains_key(name) {
             self.values.get_mut(name).unwrap().clone_from(value);
             return;

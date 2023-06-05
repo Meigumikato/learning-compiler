@@ -1,5 +1,5 @@
 use crate::expr::expression::Expr;
-use crate::interpreter::Interpreter;
+use crate::interpreter::{BlockBreak, Interpreter};
 use crate::token::Token;
 
 use super::visitor::StmtVisitor;
@@ -11,13 +11,15 @@ pub enum Stmt {
     Var(VarStmt),
     Block(BlockStmt),
     If(IfStmt),
-    WhileStmt(WhileStmt),
-    FunStmt(FunStmt),
+    While(WhileStmt),
+    Fun(FunStmt),
+    Break(BreakStmt),
+    Return(ReturnStmt),
 }
 
 impl Stmt {
-    pub fn accept(&mut self, interpreter: &mut Interpreter) {
-        interpreter.visit_stmt(self);
+    pub fn accept(&self, interpreter: &Interpreter) -> BlockBreak {
+        interpreter.visit_stmt(self)
     }
 }
 
@@ -60,4 +62,12 @@ pub struct FunStmt {
     pub name: Token,
     pub parameters: Vec<Token>,
     pub block: Vec<Stmt>,
+}
+
+#[derive(Clone)]
+pub struct BreakStmt;
+
+#[derive(Clone)]
+pub struct ReturnStmt {
+    pub expr: Option<Expr>,
 }

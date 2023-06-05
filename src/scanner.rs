@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenType};
-use crate::value::Value;
+use crate::value::{LoxValue, Value};
 use std::collections::HashMap;
 
 fn report(line: usize, where_error: String, message: &str) {
@@ -51,6 +51,7 @@ impl Scanner {
         scanner.key_words.insert("true", TokenType::True);
         scanner.key_words.insert("var", TokenType::Var);
         scanner.key_words.insert("while", TokenType::While);
+        scanner.key_words.insert("break", TokenType::Break);
 
         scanner
     }
@@ -78,7 +79,7 @@ impl Scanner {
 
         self.tokens.push(Token::new(
             TokenType::Eof,
-            Value::Nil,
+            LoxValue::new(Value::Nil),
             "".to_string(),
             self.line,
         ));
@@ -94,10 +95,10 @@ impl Scanner {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_with_literal(token_type, Value::Nil)
+        self.add_token_with_literal(token_type, LoxValue::new(Value::Nil))
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: Value) {
+    fn add_token_with_literal(&mut self, token_type: TokenType, literal: LoxValue) {
         self.tokens.push(Token::new(
             token_type,
             literal,
@@ -162,8 +163,9 @@ impl Scanner {
 
         // consume closeing "
         self.advance();
-        let literal =
-            Value::String(self.substring(self.start + 1, self.current - (self.start + 1) - 1));
+        let literal = LoxValue::new(Value::String(
+            self.substring(self.start + 1, self.current - (self.start + 1) - 1),
+        ));
 
         self.add_token_with_literal(TokenType::String, literal)
     }
@@ -182,11 +184,11 @@ impl Scanner {
             }
         }
 
-        let literal = Value::Double(
+        let literal = LoxValue::new(Value::Double(
             self.substring(self.start, self.current - self.start)
                 .parse::<f64>()
                 .expect("parse to f64 failed"),
-        );
+        ));
 
         self.add_token_with_literal(TokenType::Number, literal);
     }

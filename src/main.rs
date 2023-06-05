@@ -138,6 +138,7 @@ mod test {
     }
 
     #[test]
+    // #[ignore = "reason"]
     fn interpreter_statement_2() {
         let script = [
             "var a = 10; print a;",
@@ -184,11 +185,25 @@ mod test {
     }
 
     #[test]
+    // #[ignore = "reason"]
     fn interpreter_statement_3() {
         let script = [
             "for (;false;);",
-            r#"fun func(a, b, c) { print "func start"; print a + b +c; } 
-             print func(1, 2, 3);"#,
+            r#"
+                fun func(a, b, c) {
+                    print "func start";
+                    print a + b + c;
+                }
+                print func(1, 2, 3);
+            "#,
+            r#"
+                fun count(n) {
+                    if (n > 1) count(n - 1);
+                    print n;
+                }
+
+                count(3);
+            "#,
         ];
 
         let mut lox = Lox::new();

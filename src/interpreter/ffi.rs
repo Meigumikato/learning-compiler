@@ -1,11 +1,11 @@
-use crate::value::{Callable, Value};
+use crate::value::{Callable, LoxValue};
 
 /// foreign funtion interface -> clock
 #[derive(Clone)]
 pub struct Clock;
 
 impl Callable for Clock {
-    fn call(&mut self, _interpreter: &mut super::Interpreter, _arguments: Vec<Value>) -> Value {
+    fn call(&self, _interpreter: &super::Interpreter, _arguments: Vec<LoxValue>) -> LoxValue {
         todo!()
     }
 

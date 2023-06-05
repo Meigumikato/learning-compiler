@@ -1,6 +1,6 @@
 use crate::token::Token;
 
-use crate::value::Value;
+use crate::value::LoxValue;
 
 use super::visitor::ExprVisitor;
 
@@ -8,7 +8,7 @@ use super::visitor::ExprVisitor;
 #[derive(Clone)]
 pub enum Expr {
     Nil,
-    Literal(Value),
+    Literal(LoxValue),
     Unary(Unary),
     Binary(Binary),
     Ternary(Ternary),
@@ -17,10 +17,11 @@ pub enum Expr {
     Assign(Assign),
     Logic(Logic),
     Call(Call),
+    Comma(Comma),
 }
 
 impl Expr {
-    pub fn accept<T>(&self, visitor: &mut impl ExprVisitor<T>) -> T {
+    pub fn accept<T>(&self, visitor: &impl ExprVisitor<T>) -> T {
         visitor.visit_expr(self)
     }
 }
@@ -36,6 +37,11 @@ pub struct Binary {
     pub operator: Token,
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
+}
+
+#[derive(Clone)]
+pub struct Comma {
+    pub internal: Vec<Expr>,
 }
 
 #[derive(Clone)]
