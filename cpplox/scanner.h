@@ -2,7 +2,6 @@
 
 #include <cstring>
 enum class TokenType {
-  Nothing,
   // Single-character tokens.
   LEFT_PAREN,
   RIGHT_PAREN,
@@ -47,7 +46,9 @@ enum class TokenType {
   WHILE,
 
   ERROR,
-  TEOF
+  TEOF,
+
+  SENTINAL,
 };
 
 struct Token {
@@ -86,7 +87,7 @@ class Scanner {
     return false;
   }
 
-  bool IsDigit(char c) { return c <= '0' && c >= '9'; }
+  bool IsDigit(char c) { return c >= '0' && c <= '9'; }
 
   bool IsAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';

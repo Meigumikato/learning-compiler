@@ -37,4 +37,4 @@ struct VM {
   InterpreteResult run();
 };
 
-InterpreteResult interpret(Chunk* chunk);
+InterpreteResult interpret(const char* source);

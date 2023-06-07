@@ -16,9 +16,8 @@ static void repl() {
       printf("\n");
       break;
     }
+    interpret(line);
   }
-
-  interpret(line);
 }
 
 static char* ReadFile(const char* path) {
@@ -63,35 +62,13 @@ static void RunFile(const char* path) {
 }
 
 int main(int argc, char* argv[]) {
-  // Chunk chunk;
-  //
-  // chunk.WriteConstant(1.2, 123);
-  // chunk.Write(OP_NEGATE, 123);
-  //
-  // chunk.WriteConstant(3.8, 123);
-  //
-  // chunk.Write(OP_ADD, 123);
-  //
-  // chunk.WriteConstant(2, 123);
-  //
-  // chunk.Write(OP_SUBTRACT, 123);
-  //
-  // chunk.WriteConstant(3, 123);
-  // chunk.Write(OP_MULTIPLY, 123);
-  //
-  // chunk.Write(OP_RETURN, 123);
-  //
-  // interpret(&chunk);
-  // // chunk.Disassemble("test chunk");
-  //
-  // chunk.Free();
-
   if (argc == 1) {
     repl();
   } else if (argc == 2) {
     RunFile(argv[1]);
   } else {
-    fprintf(stderr, "Usage: clox [path]\n]") exit(64);
+    fprintf(stderr, "Usage: clox [path]\n]");
+    exit(64);
   }
 
   return 0;

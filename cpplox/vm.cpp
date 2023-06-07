@@ -13,13 +13,13 @@ VM vm;
 void VM::Free() {}
 
 InterpreteResult interpret(const char* source) {
-  Chunk chunk;
+  Compiler compiler(source);
 
-  if (!compile(source, &chunk)) {
+  if (!compiler.Compile()) {
     return INTERPRET_COMPILE_ERROR;
   }
 
-  vm.chunk = &chunk;
+  vm.chunk = compiler.GetChunk();
   vm.ip = vm.chunk->code;
 
   auto result = vm.run();

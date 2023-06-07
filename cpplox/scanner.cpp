@@ -56,7 +56,9 @@ Token Scanner::Number() {
   }
 
   if (Peek() == '.' && IsDigit(PeekNext())) {
+    // consume dot
     Advance();
+
     while (!IsAtEnd() && IsDigit(Peek())) {
       Advance();
     }
