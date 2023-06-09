@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "chunk.h"
+#include "value.h"
 
 void disassembleChunk(Chunk *chunk, const char *name) {
   printf("== %s ==\n", name);
@@ -16,7 +17,7 @@ void disassembleChunk(Chunk *chunk, const char *name) {
 static int constantInstruction(const char *name, Chunk *chunk, int offset) {
   uint8_t constant = chunk->code[offset + 1];
   printf("%-16s %4d '", name, constant);
-  chunk->constants.Print(constant);
+  PrintValue(chunk->constants.values[constant]);
   printf("'\n");
 
   return offset + 2;
@@ -33,7 +34,7 @@ static int longConstantInstruction(const char *name, Chunk *chunk, int offset) {
   LongConstant *instruct = (LongConstant *)(chunk->code + offset);
 
   printf("%-16s %4d '", name, instruct->operand);
-  chunk->constants.Print(instruct->operand);
+  PrintValue(chunk->constants.values[instruct->operand]);
   printf("'\n");
 
   return offset + 4;
@@ -66,10 +67,13 @@ int disassembleInstruction(Chunk *chunk, int offset) {
 
     case OP_ADD:
       return simpleInstruction("OP_ADD", offset);
+
     case OP_SUBTRACT:
       return simpleInstruction("OP_SUBTRACT", offset);
+
     case OP_MULTIPLY:
       return simpleInstruction("OP_MULTIPLY", offset);
+
     case OP_DIVIDE:
       return simpleInstruction("OP_DIVIDE", offset);
 

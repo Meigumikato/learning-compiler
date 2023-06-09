@@ -21,6 +21,4 @@ ValueArray::~ValueArray() {
   values = nullptr;
 }
 
-void ValueArray::Print(int offset) { printf("%g", values[offset]); }
-
-void PrintValue(Value value) { printf("%g", value); }
+void PrintValue(Value value) { printf("%g", AS_NUMBER(value)); }

@@ -138,6 +138,8 @@ Token Scanner::Identifier() {
 }
 
 Token Scanner::ScanToken() {
+  SkipWhiteSpace();
+
   start = current;
 
   if (IsAtEnd()) return MakeToken(TokenType::TEOF);
@@ -155,6 +157,8 @@ Token Scanner::ScanToken() {
       return MakeToken(TokenType::RIGHT_BRACE);
     case ';':
       return MakeToken(TokenType::SEMICOLON);
+    case ':':
+      return MakeToken(TokenType::COLON);
     case ',':
       return MakeToken(TokenType::COMMA);
     case '.':
@@ -167,6 +171,8 @@ Token Scanner::ScanToken() {
       return MakeToken(TokenType::SLASH);
     case '*':
       return MakeToken(TokenType::STAR);
+    case '?':
+      return MakeToken(TokenType::QUESTIONMARK);
 
     case '!':
       return match('=') ? MakeToken(TokenType::BANG)
@@ -191,9 +197,6 @@ Token Scanner::ScanToken() {
       } else if (IsAlpha(c)) {
         return Identifier();
       }
-
-      // case '(':
-      // case '(':
   }
 
   return ErrorToken("Unexpected character.");

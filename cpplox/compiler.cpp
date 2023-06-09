@@ -13,12 +13,14 @@ const Compiler::ParseRule Compiler::rules[(int)TokenType::SENTINAL] = {
      .infix = nullptr,
      .precedence = Compiler::PREC_NONE},
     // [(int)TokenType::RIGHT_PAREN] =
-    {.prefix = nullptr, .infix = nullptr, .precedence = Compiler::PREC_NONE},
+    {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
     // [(int)TokenType::LEFT_BRACE] =
     {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
     // [(int)TokenType::RIGHT_BRACE] =
     {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
     // [(int)TokenType::COMMA] =
+    {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
+    // [(int)TokenType::COLON] =
     {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
     // [(int)TokenType::DOT] =
     {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
@@ -34,6 +36,11 @@ const Compiler::ParseRule Compiler::rules[(int)TokenType::SENTINAL] = {
     {.prefix = nullptr, .infix = &Compiler::Binary, .precedence = PREC_FACTOR},
     // [(int)TokenType::STAR] =
     {.prefix = nullptr, .infix = &Compiler::Binary, .precedence = PREC_FACTOR},
+    // [TokenType::QUESTIONMARK]
+    {.prefix = nullptr,
+     .infix = &Compiler::Ternary,
+     .precedence = PREC_TERNARY},
+
     // [(int)TokenType::BANG] =
     {.prefix = nullptr, .infix = nullptr, .precedence = PREC_NONE},
     // [(int)TokenType::BANG_EQUAL] =
@@ -203,7 +210,7 @@ void Compiler::Expression() { ParsePrecedence(PREC_ASSIGNMENT); }
 
 void Compiler::Number() {
   double value = strtod(parser_.previous.start, nullptr);
-  EmitConstant(value);
+  EmitConstant(NUMBER_VAL(value));
 }
 
 void Compiler::Grouping() {
@@ -250,3 +257,5 @@ void Compiler::Binary() {
       return;  // unreachable
   }
 }
+
+void Compiler::Ternary() {}

@@ -21,7 +21,9 @@ struct VM {
 
   void ResetStack() { stack_top = stack; }
 
-  Value* Top() { return stack_top; }
+  void RuntimeError(const char* format, ...);
+
+  Value* Top() { return stack_top - 1; }
 
   void Push(Value value) {
     *stack_top = value;
@@ -31,6 +33,8 @@ struct VM {
     stack_top--;
     return *stack_top;
   }
+
+  Value Peek(int distance) { return stack_top[-1 - distance]; }
 
   void Free();
 

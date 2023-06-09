@@ -25,6 +25,7 @@ class Compiler {
   enum Precedence {
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
+    PREC_TERNARY,
     PREC_OR,          // or
     PREC_AND,         // and
     PREC_EQUALITY,    // == !=
@@ -91,6 +92,8 @@ class Compiler {
   void Unary();
 
   void Binary();
+
+  void Ternary();
 };
 
 bool compile(const char* source, Chunk* chunk);
