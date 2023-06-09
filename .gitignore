@@ -1,5 +1,5 @@
-/target
+target
 .gdb*
 .vscode
 antlr4
-.cache
+**/.cache
