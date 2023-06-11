@@ -5,6 +5,55 @@
 #include "debug.h"
 #include "memory.h"
 
+void LineInfo::Append(int line) {
+  if (capacity < count + 1) {
+    int old_capacity = capacity;
+    capacity = GROW_CAPACITY(old_capacity);
+    lines = GROW_ARRAY(Line, lines, old_capacity, capacity);
+  }
+
+  if (count > 0 && line == lines[count - 1].number) {
+    lines[count - 1].count++;
+  } else {
+    lines[count].number = line;
+    lines[count].count = 1;
+    count++;
+  }
+}
+
+LineInfo::~LineInfo() { FREE_ARRAY(Line, lines, capacity); }
+
+int LineInfo::GetLine(int offset) {
+  int acc = 0;
+  for (int i = 0; i < count; ++i) {
+    acc += lines[i].count;
+    if (acc >= offset) {
+      return lines[i].number;
+    }
+  }
+  assert(0);
+}
+
+bool LineInfo::IsInSameLine(int offset1, int offset2) {
+  int acc = 0;
+  for (int i = 0; i < count; ++i) {
+    acc += lines[i].count;
+    if (acc >= offset1) {
+      if (acc >= offset2)
+        return true;
+      else
+        return false;
+    }
+    if (acc >= offset2) {
+      if (acc >= offset1)
+        return true;
+      else
+        return false;
+    }
+  }
+  assert(0);
+}
+
 void Chunk::Write(uint8_t byte, int line) {
   if (capacity < count + 1) {
     auto old_capacity = capacity;
@@ -44,7 +93,7 @@ Chunk::~Chunk() {
   code = nullptr;
 }
 
-void Chunk::Disassemble(const char* name) { disassembleChunk(this, name); }
+void Chunk::Disassemble(const char* name) { DisassembleChunk(this, name); }
 
 int Chunk::AddConstant(Value value) {
   constants.Write(value);

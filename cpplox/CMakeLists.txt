@@ -25,4 +25,8 @@ target_sources(
         vm.cpp
         scanner.cpp
         compiler.cpp
+        object.cpp
+        table.cpp
 )
+target_compile_options(cpplox PRIVATE -fsanitize=address)
+target_link_options(cpplox PRIVATE -fsanitize=address)

@@ -1,8 +1,11 @@
 #pragma once
 
-#include "chunk.h"
+#include <cstdint>
+#include <vector>
 
-#define STACK_MAX 256
+#include "chunk.h"
+#include "table.h"
+#include "value.h"
 
 enum InterpreteResult {
   INTERPRET_OK,
@@ -11,24 +14,47 @@ enum InterpreteResult {
 
 };
 
-struct VM {
-  Chunk* chunk;
-  uint8_t* ip;  // pc
+class VM {
+ private:
+  inline static constexpr int FRAMES_MAX = 64;
+  inline static constexpr int STACK_MAX = FRAMES_MAX * UINT8_MAX;
+
+  Chunk* chunk{};
+  uint8_t* ip{};  // pc
   Value stack[STACK_MAX];
-  Value* stack_top = stack;
+  Value* stack_top{stack};
+  Obj* objects{};
 
-  VM& GetInstance();
+  HashTable strings;
+  HashTable globals;
 
-  void ResetStack() { stack_top = stack; }
+  struct CallFrame {
+    ObjFunction* function{};
+    uint8_t* ip{};
+    Value* slots{};
+  };
+
+  std::vector<CallFrame> frames;
+
+  InterpreteResult Run();
+
+  void ResetStack() {
+    stack_top = stack;
+    objects = nullptr;
+  }
+
+  bool Call(ObjFunction* function, int arg_count);
+  bool CallValue(Value callee, int arg_count);
 
   void RuntimeError(const char* format, ...);
 
-  Value* Top() { return stack_top - 1; }
+  void Concatenate();
 
   void Push(Value value) {
     *stack_top = value;
     stack_top++;
   }
+
   Value Pop() {
     stack_top--;
     return *stack_top;
@@ -38,7 +64,21 @@ struct VM {
 
   void Free();
 
-  InterpreteResult run();
-};
+  void FreeObjects();
 
-InterpreteResult interpret(const char* source);
+ public:
+  ~VM() { Free(); }
+
+  InterpreteResult Interpret(const char* source);
+
+  static VM* GetInstance() {
+    static VM vm;
+    return &vm;
+  }
+
+  void InsertObject(Obj* object);
+
+  bool InsertString(ObjString* string);
+
+  ObjString* FindString(const char* chars, int length, uint32_t hash);
+};

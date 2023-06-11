@@ -37,7 +37,7 @@ void Scanner::SkipWhiteSpace() {
 }
 
 Token Scanner::String() {
-  while (Peek() != '"' && IsAtEnd()) {
+  while (Peek() != '"' && !IsAtEnd()) {
     if (Peek() == '\n') line++;
     Advance();
   }
@@ -66,10 +66,10 @@ Token Scanner::Number() {
 
   return MakeToken(TokenType::NUMBER);
 }
-TokenType Scanner::CheckKeyword(int begain, int length, const char* rest,
+TokenType Scanner::CheckKeyword(int begin, int length, const char* rest,
                                 TokenType type) {
-  if (begain + length == (int)(current - start) &&
-      memcmp(rest, start + begain, length) == 0) {
+  if (begin + length == (int)(current - start) &&
+      memcmp(rest, start + begin, length) == 0) {
     return type;
   }
 
@@ -152,9 +152,9 @@ Token Scanner::ScanToken() {
     case ')':
       return MakeToken(TokenType::RIGHT_PAREN);
     case '}':
-      return MakeToken(TokenType::LEFT_BRACE);
-    case '{':
       return MakeToken(TokenType::RIGHT_BRACE);
+    case '{':
+      return MakeToken(TokenType::LEFT_BRACE);
     case ';':
       return MakeToken(TokenType::SEMICOLON);
     case ':':

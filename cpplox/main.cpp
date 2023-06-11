@@ -16,7 +16,7 @@ static void repl() {
       printf("\n");
       break;
     }
-    interpret(line);
+    VM::GetInstance()->Interpret(line);
   }
 }
 
@@ -54,7 +54,7 @@ static char* ReadFile(const char* path) {
 
 static void RunFile(const char* path) {
   char* source = ReadFile(path);
-  auto res = interpret(source);
+  auto res = VM::GetInstance()->Interpret(source);
   free(source);
 
   if (res == INTERPRET_COMPILE_ERROR) exit(65);

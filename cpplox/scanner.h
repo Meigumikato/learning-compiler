@@ -133,5 +133,3 @@ class Scanner {
   const char* current;
   int line;
 };
-
-void InitScanner(const char* source);
