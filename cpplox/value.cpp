@@ -2,67 +2,65 @@
 
 #include <cstdio>
 #include <cstring>
+#include <type_traits>
+#include <variant>
 
-#include "memory.h"
-#include "object.h"
+#include "chunk.h"
 
-void ValueArray::Write(Value value) {
-  if (capacity < count + 1) {
-    int old_capacity = capacity;
-    capacity = GROW_CAPACITY(capacity);
-    values = GROW_ARRAY(Value, values, old_capacity, capacity);
-  }
-
-  values[count++] = value;
-}
-
-ValueArray::~ValueArray() {
-  FREE_ARRAY(Value, values, capacity);
-
-  capacity = count = 0;
-  values = nullptr;
-}
+// helper type for the visitor #4
+template <class... Ts>
+struct Overloaded : Ts... {
+  using Ts::operator()...;
+};
+// explicit deduction guide (not needed as of C++20)
+template <class... Ts>
+Overloaded(Ts...) -> Overloaded<Ts...>;
 
 bool ValuesEqual(Value a, Value b) {
-  if (a.type != b.type) return false;
+  return std::visit(
+      Overloaded{
+          [](std::monostate b1, std::monostate b2) { return true; },
+          [](bool b1, bool b2) { return b1 == b2; },
+          [](double d1, double d2) { return d1 == d2; },
+          [](Object* a, Object* b) {
+            auto a_string = reinterpret_cast<String*>(a);
+            auto b_string = reinterpret_cast<String*>(b);
 
-  switch (a.type) {
-    case VAL_BOOL:
-      return AS_BOOL(a) == AS_BOOL(b);
+            return a_string->length == b_string->length &&
+                   memcmp(a_string->chars, b_string->chars, a_string->length) ==
+                       0;
+          },
+          [](auto o1, auto o2) { return false; },
 
-    case VAL_NIL:
-      return true;
+      },
+      a, b);
+}
 
-    case VAL_NUMBER:
-      return AS_NUMBER(a) == AS_NUMBER(b);
-
-    case VAL_OBJ: {
-      ObjString* a_string = AS_STRING(a);
-      ObjString* b_string = AS_STRING(b);
-
-      return a_string->length == b_string->length &&
-             memcmp(a_string->chars, b_string->chars, a_string->length) == 0;
+static void PrintObject(Object* obj) {
+  switch (obj->type) {
+    case ObjectType::String: {
+      auto string = reinterpret_cast<String*>(obj);
+      printf("%s", string->chars);
+      break;
     }
-
+    case ObjectType::Function: {
+      auto function = reinterpret_cast<Function*>(obj);
+      if (function->name == nullptr) {
+        printf("<script>");
+      } else {
+        printf("%s -> %d\n", function->name->chars, function->arity);
+      }
+      break;
+    }
     default:
-      return false;
+      break;
   }
 }
 
 void PrintValue(Value value) {
-  switch (value.type) {
-    case VAL_BOOL:
-      printf(AS_BOOL(value) ? "true" : "false");
-      break;
-    case VAL_NIL:
-      printf("nil");
-      break;
-
-    case VAL_NUMBER:
-      printf("%g", AS_NUMBER(value));
-      break;
-    case VAL_OBJ:
-      PrintObject(value);
-      break;
-  }
+  std::visit(Overloaded{[](bool b) { printf(b ? "true" : "false"); },
+                        [](double b) { printf("%g", b); },
+                        [](std::monostate m) { printf("nil"); },
+                        [](Object* o) { PrintObject(o); }},
+             value);
 }

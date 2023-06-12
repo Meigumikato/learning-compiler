@@ -1,27 +1,17 @@
 #include "chunk.h"
 
-#include <cstdlib>
-
 #include "debug.h"
-#include "memory.h"
+#include "opcode.h"
 
 void LineInfo::Append(int line) {
-  if (capacity < count + 1) {
-    int old_capacity = capacity;
-    capacity = GROW_CAPACITY(old_capacity);
-    lines = GROW_ARRAY(Line, lines, old_capacity, capacity);
-  }
-
-  if (count > 0 && line == lines[count - 1].number) {
-    lines[count - 1].count++;
+  if (lines.size() > 0 && line == lines.back().number) {
+    lines.back().count++;
   } else {
-    lines[count].number = line;
-    lines[count].count = 1;
-    count++;
+    lines.push_back({line, 1});
   }
 }
 
-LineInfo::~LineInfo() { FREE_ARRAY(Line, lines, capacity); }
+LineInfo::~LineInfo() {}
 
 int LineInfo::GetLine(int offset) {
   int acc = 0;
@@ -55,26 +45,17 @@ bool LineInfo::IsInSameLine(int offset1, int offset2) {
 }
 
 void Chunk::Write(uint8_t byte, int line) {
-  if (capacity < count + 1) {
-    auto old_capacity = capacity;
-
-    capacity = GROW_CAPACITY(old_capacity);
-    code = GROW_ARRAY(uint8_t, code, old_capacity, capacity);
-  }
-
+  code.push_back(byte);
   line_info.Append(line);
-
-  code[count] = byte;
-  count++;
 }
 
 void Chunk::WriteConstant(Value value, int line) {
   int constant = AddConstant(value);
   if (constant < 256) {
-    Write(OP_CONSTANT, line);
+    Write(static_cast<uint8_t>(OpCode::OP_CONSTANT), line);
     Write(constant, line);
   } else {
-    Write(OP_CONSTANT_LONG, line);
+    Write(static_cast<uint8_t>(OpCode::OP_CONSTANT_LONG), line);
 
     uint8_t* long_constant = (uint8_t*)&constant;
     if (constant >= (1 << 24)) {
@@ -87,15 +68,9 @@ void Chunk::WriteConstant(Value value, int line) {
   }
 }
 
-Chunk::~Chunk() {
-  FREE_ARRAY(uint8_t, code, capacity);
-  count = capacity = 0;
-  code = nullptr;
-}
-
 void Chunk::Disassemble(const char* name) { DisassembleChunk(this, name); }
 
 int Chunk::AddConstant(Value value) {
-  constants.Write(value);
-  return constants.count - 1;
+  constants.push_back(value);
+  return constants.size() - 1;
 }

@@ -12,9 +12,7 @@ class Compiler {
  public:
   Compiler(const char* source) : source_(source), scanner_(source) {}
 
-  ObjFunction* Compile();
-
-  // Chunk* GetChunk() { return &chunk_; }
+  std::unique_ptr<Function> Compile();
 
  private:
   struct Local {
@@ -58,15 +56,17 @@ class Compiler {
   };
 
   struct FuncScope {
+    // ref
     FuncScope* enclosing{};
-    ObjFunction* function{};
+
+    std::unique_ptr<Function> function{};
+
     FunctionType func_type;
+
+    int scope_depth_{};
     std::vector<Local> locals;
 
-    ~FuncScope() {
-      enclosing = nullptr;
-      delete function;
-    }
+    ~FuncScope() { enclosing = nullptr; }
   };
 
   FuncScope* current_;
@@ -78,8 +78,6 @@ class Compiler {
   Scanner scanner_;
 
   Parser parser_;
-
-  int scope_depth_{};
 
   static const ParseRule* GetRule(TokenType type);
 
@@ -96,7 +94,7 @@ class Compiler {
 
   void Consume(TokenType type, const char* message);
 
-  ObjFunction* FinishCompile();
+  std::unique_ptr<Function> FinishCompile();
 
   void Advance();
 

@@ -1,17 +1,19 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "chunk.h"
 #include "table.h"
 #include "value.h"
 
-enum InterpreteResult {
-  INTERPRET_OK,
-  INTERPRET_COMPILE_ERROR,
-  INTERPRET_RUNTIME_ERROR,
-
+enum class InterpreteResult {
+  Ok,
+  CompilerError,
+  RuntimeError,
 };
 
 class VM {
@@ -23,15 +25,22 @@ class VM {
   uint8_t* ip{};  // pc
   Value stack[STACK_MAX];
   Value* stack_top{stack};
-  Obj* objects{};
 
-  HashTable strings;
-  HashTable globals;
+  Object* objects{};
+
+  std::unordered_set<std::string> strings;
+  std::unordered_map<String*, Value> globals;
 
   struct CallFrame {
-    ObjFunction* function{};
+    Function* function{};
     uint8_t* ip{};
     Value* slots{};
+
+    ~CallFrame() {
+      ip = nullptr;
+      slots = nullptr;
+      // delete function;
+    }
   };
 
   std::vector<CallFrame> frames;
@@ -43,7 +52,16 @@ class VM {
     objects = nullptr;
   }
 
-  bool Call(ObjFunction* function, int arg_count);
+  uint8_t ReadByte();
+
+  uint16_t ReadShort();
+
+  Value ReadConstant();
+
+  String* ReadString();
+
+  bool Call(Function* function, int arg_count);
+
   bool CallValue(Value callee, int arg_count);
 
   void RuntimeError(const char* format, ...);
@@ -76,9 +94,13 @@ class VM {
     return &vm;
   }
 
-  void InsertObject(Obj* object);
+  void Debug();
 
-  bool InsertString(ObjString* string);
+  CallFrame* current_frame_;
 
-  ObjString* FindString(const char* chars, int length, uint32_t hash);
+  void InsertObject(Object* object);
+
+  bool InsertString(String* string);
+
+  String* FindString(const char* chars, int length, uint32_t hash);
 };

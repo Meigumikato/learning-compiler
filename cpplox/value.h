@@ -1,48 +1,50 @@
 #pragma once
 
+#include <string>
+#include <variant>
+#include <vector>
+
 #include "common.h"
+#include "scanner.h"
 
-struct Obj;
-struct ObjString;
-
-enum ValueType {
-  VAL_BOOL,
-  VAL_NIL,
-  VAL_NUMBER,
-  VAL_OBJ,
+enum class ObjectType {
+  String,
+  Function,
 };
 
-struct Value {
-  ValueType type;
-  union {
-    bool boolean;
-    double number;
-    Obj* obj;
-  } as;
+struct Object {
+  ObjectType type;
+  Object* next{};
 };
 
-#define BOOL_VAL(value) ((Value){VAL_BOOL, {.boolean = value}})
-#define NIL_VAL ((Value){VAL_NIL, {.number = 0}})
-#define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
-#define OBJ_VAL(object) ((Value){VAL_OBJ, {.obj = (Obj*)object}})
-
-#define AS_BOOL(value) ((value).as.boolean)
-#define AS_NUMBER(value) ((value).as.number)
-#define AS_OBJ(value) ((value).as.obj)
-
-#define IS_BOOL(value) ((value).type == VAL_BOOL)
-#define IS_NIL(value) ((value).type == VAL_NIL)
-#define IS_NUMBER(value) ((value).type == VAL_NUMBER)
-#define IS_OBJ(value) ((value).type == VAL_OBJ)
-
-struct ValueArray {
-  ~ValueArray();
-
-  int capacity{};
-  int count{};
-  Value* values{};
-
-  void Write(Value value);
+struct String : Object {
+  std::string content;
 };
 
+using Value = std::variant<std::monostate, bool, double, Object*>;
+
+constexpr inline bool IsNil(Value value) {
+  return std::holds_alternative<std::monostate>(value);
+}
+
+constexpr inline bool IsString(Value value) {
+  if (std::holds_alternative<Object*>(value)) {
+    return false;
+  }
+  return std::get<Object*>(value)->type == ObjectType::String;
+}
+
+inline String* AsString(Value value) {
+  return reinterpret_cast<String*>(std::get<Object*>(value));
+}
+
+constexpr inline bool IsNumber(Value value) {
+  return std::holds_alternative<double>(value);
+}
+
+constexpr inline double AsNumber(Value value) {
+  return std::get<double>(value);
+}
+
+bool ValuesEqual(Value a, Value b);
 void PrintValue(Value value);

@@ -1,43 +1,7 @@
 #pragma once
 
+#include "common.h"
 #include "value.h"
-
-enum OpCode {
-  OP_RETURN,
-  OP_CONSTANT,
-  OP_NIL,
-  OP_TRUE,
-  OP_FALSE,
-  OP_EQUAL,
-  OP_GREATER,
-  OP_LESS,
-
-  OP_ADD,
-  OP_SUBTRACT,
-  OP_MULTIPLY,
-  OP_DIVIDE,
-
-  OP_NOT,
-  OP_NEGATE,
-  OP_PRINT,
-  OP_POP,
-
-  OP_GET_GLOBAL,
-  OP_SET_GLOBAL,
-
-  OP_SET_LOCAL,
-  OP_GET_LOCAL,
-
-  OP_JUMP,
-  OP_JUMP_IF_FALSE,
-
-  OP_LOOP,
-
-  OP_CALL,
-
-  OP_DEFINE_GLOBAL,
-  OP_CONSTANT_LONG,
-};
 
 struct LineInfo {
   int count{};
@@ -48,7 +12,7 @@ struct LineInfo {
     int count{};
   };
 
-  Line* lines{};
+  std::vector<Line> lines{};
 
   void Append(int line);
 
@@ -59,12 +23,13 @@ struct LineInfo {
   bool IsInSameLine(int offset1, int offset2);
 };
 
-struct Chunk {
-  int count{};
-  int capacity{};
-  uint8_t* code{};
+class Chunk {
+ public:
+  size_t Count() { return code.size(); }
+
+  std::vector<uint8_t> code;
   LineInfo line_info;
-  ValueArray constants;
+  std::vector<Value> constants;
 
   void Write(uint8_t byte, int line);
   void WriteConstant(Value value, int line);
@@ -74,4 +39,10 @@ struct Chunk {
   void Disassemble(const char* name);
 
   int AddConstant(Value value);
+};
+
+struct Function : Object {
+  int arity{};
+  Chunk chunk{};
+  String* name{};
 };
