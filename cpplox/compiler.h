@@ -59,9 +59,14 @@ class Compiler {
 
   struct FuncScope {
     FuncScope* enclosing{};
-    ObjFunction* function_{};
-    FunctionType func_type_;
-    std::vector<Local> locals_;
+    ObjFunction* function{};
+    FunctionType func_type;
+    std::vector<Local> locals;
+
+    ~FuncScope() {
+      enclosing = nullptr;
+      delete function;
+    }
   };
 
   FuncScope* current_;

@@ -48,7 +48,7 @@ struct LineInfo {
     int count{};
   };
 
-  Line* lines{nullptr};
+  Line* lines{};
 
   void Append(int line);
 
@@ -62,7 +62,7 @@ struct LineInfo {
 struct Chunk {
   int count{};
   int capacity{};
-  uint8_t* code{nullptr};
+  uint8_t* code{};
   LineInfo line_info;
   ValueArray constants;
 

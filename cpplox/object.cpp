@@ -32,6 +32,7 @@ ObjFunction* NewFunction() {
   ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
   function->arity = 0;
   function->name = nullptr;
+  function->chunk = Chunk{};
   return function;
 }
 

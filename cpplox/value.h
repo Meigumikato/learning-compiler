@@ -40,7 +40,7 @@ struct ValueArray {
 
   int capacity{};
   int count{};
-  Value* values{nullptr};
+  Value* values{};
 
   void Write(Value value);
 };

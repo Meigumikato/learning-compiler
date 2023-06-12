@@ -186,7 +186,7 @@ InterpreteResult VM::Run() {
     printf("\n");
 
     disassembleInstruction(&frame->function->chunk,
-                           (int)(frame->ip - chunk->code));
+                           (int)(frame->ip - frame->function->chunk.code));
 #endif
 
     uint8_t instruction;
@@ -217,7 +217,6 @@ InterpreteResult VM::Run() {
         break;
 
       case OP_NEGATE: {
-        // OPTIM:
         if (IS_NUMBER(Peek(0))) {
           RuntimeError("Operand is must be a number.");
           return INTERPRET_RUNTIME_ERROR;
@@ -257,8 +256,6 @@ InterpreteResult VM::Run() {
       case OP_CONSTANT: {
         auto constant = READ_CONSTANT();
         Push(constant);
-        // PrintValue(constant);
-        // printf("\n");
         break;
       }
 

@@ -30,6 +30,8 @@ struct ObjFunction {
   int arity{};
   Chunk chunk{};
   ObjString* name{};
+
+  ~ObjFunction() { delete name; }
 };
 
 struct ObjString {

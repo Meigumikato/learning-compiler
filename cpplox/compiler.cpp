@@ -168,20 +168,23 @@ ObjFunction* Compiler::FinishCompile() {
 
 #ifdef DEBUG_PRINT_CODE
   if (!parser_.had_error) {
-    current_->function_->chunk.Disassemble(
-        current_->function_->name != nullptr ? current_->function_->name->chars
-                                             : "<script>");
+    current_->function->chunk.Disassemble(current_->function->name != nullptr
+                                              ? current_->function->name->chars
+                                              : "<script>");
   }
 #endif
 
+  auto function = current_->function;
   current_ = current_->enclosing;
 
-  return current_->function_;
+  return function;
 }
 
 ObjFunction* Compiler::Compile() {
-  FuncScope func_scope{.func_type_ = FunctionType::SCRIPT};
+  FuncScope func_scope{.function = NewFunction(),
+                       .func_type = FunctionType::SCRIPT};
 
+  func_scope.enclosing = current_;
   current_ = &func_scope;
 
   Advance();
@@ -191,13 +194,13 @@ ObjFunction* Compiler::Compile() {
   }
   Consume(TokenType::TEOF, "Expect end of expression.");
 
-  FinishCompile();
+  auto function = FinishCompile();
 
-  return parser_.had_error ? nullptr : current_->function_;
+  return parser_.had_error ? nullptr : function;
 }
 
 void Compiler::EmitByte(uint8_t byte) {
-  current_->function_->chunk.Write(byte, parser_.previous.line);
+  current_->function->chunk.Write(byte, parser_.previous.line);
 }
 
 void Compiler::EmitBytes(uint8_t byte1, uint8_t byte2) {
@@ -215,7 +218,7 @@ void Compiler::EmitConstant(Value value) {
 }
 
 uint8_t Compiler::MakeConstant(Value value) {
-  int constant = current_->function_->chunk.AddConstant(value);
+  int constant = current_->function->chunk.AddConstant(value);
   if (constant > UINT8_MAX) {
     // TODO: OP_CONSTANT_LONG
     Error("Too may constants in one chunk.");
@@ -230,23 +233,23 @@ uint16_t Compiler::EmitJump(uint8_t instruction) {
   // jump offset 16byte
   EmitBytes(0xff, 0xff);
 
-  return current_->function_->chunk.count - 2;
+  return current_->function->chunk.count - 2;
 }
 
 void Compiler::PatchJump(int offset) {
-  int jump = current_->function_->chunk.count - offset - 2;
+  int jump = current_->function->chunk.count - offset - 2;
   if (jump > UINT16_MAX) {
     Error("Too much code to jump over.");
   }
 
-  current_->function_->chunk.code[offset] = (jump >> 8) & 0xff;
-  current_->function_->chunk.code[offset + 1] = jump & 0xff;
+  current_->function->chunk.code[offset] = (jump >> 8) & 0xff;
+  current_->function->chunk.code[offset + 1] = jump & 0xff;
 }
 
 void Compiler::EmitLoop(int loop_start) {
   EmitByte(OP_LOOP);
 
-  int offset = current_->function_->chunk.count - loop_start + 2;
+  int offset = current_->function->chunk.count - loop_start + 2;
   if (offset > UINT16_MAX) Error("Loop body too large.");
 
   EmitByte((offset >> 8) & 0xff);
@@ -258,20 +261,20 @@ void Compiler::BeginScope() { scope_depth_++; }
 void Compiler::EndScope() {
   scope_depth_--;
 
-  while (current_->locals_.size() > 0 &&
-         current_->locals_.back().depth > scope_depth_) {
+  while (current_->locals.size() > 0 &&
+         current_->locals.back().depth > scope_depth_) {
     EmitByte(OP_POP);
-    current_->locals_.pop_back();
+    current_->locals.pop_back();
   }
 }
 
 void Compiler::AddLocal(Token name) {
-  if (current_->locals_.size() == current_->locals_.max_size()) {
+  if (current_->locals.size() == current_->locals.max_size()) {
     Error("Too many local variables in function.");
     return;
   }
 
-  current_->locals_.emplace_back(name, -1);
+  current_->locals.emplace_back(name, -1);
 }
 
 uint8_t Compiler::IdentifierConstant(Token* name) {
@@ -306,8 +309,8 @@ void Compiler::DeclareVariable() {
 
   Token* name = &parser_.previous;
 
-  for (int i = current_->locals_.size() - 1; i >= 0; --i) {
-    auto local = &current_->locals_[i];
+  for (int i = current_->locals.size() - 1; i >= 0; --i) {
+    auto local = &current_->locals[i];
     if (local->depth != -1 && local->depth < scope_depth_) {
       break;
     }
@@ -330,7 +333,7 @@ uint8_t Compiler::ParseVariable(const char* msg) {
 
 void Compiler::MarkInitialized() {
   if (scope_depth_ == 0) return;
-  current_->locals_.back().depth = scope_depth_;
+  current_->locals.back().depth = scope_depth_;
 }
 
 void Compiler::DefineVariable(uint8_t global) {
@@ -473,8 +476,8 @@ void Compiler::Variable(bool can_assign) {
 }
 
 int Compiler::ResolveLocal(Token* name) {
-  for (int i = current_->locals_.size() - 1; i >= 0; i--) {
-    auto local = &current_->locals_[i];
+  for (int i = current_->locals.size() - 1; i >= 0; i--) {
+    auto local = &current_->locals[i];
     if (IdentifierEqual(name, &local->name)) {
       if (local->depth == -1) {
         Error("Can't read local variable in its own initializer.");
@@ -585,7 +588,7 @@ void Compiler::IfStatement() {
 }
 
 void Compiler::WhileStatement() {
-  int loop_start = current_->function_->chunk.count;
+  int loop_start = current_->function->chunk.count;
   Consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.");
   Expression();
   Consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
@@ -600,7 +603,7 @@ void Compiler::WhileStatement() {
 }
 
 void Compiler::ReturnStatement() {
-  if (current_->func_type_ == FunctionType::SCRIPT) {
+  if (current_->func_type == FunctionType::SCRIPT) {
     Error("Can't return from top-level code.");
   }
 
@@ -627,7 +630,7 @@ void Compiler::ForStatement() {
   }
 
   // loop condition
-  int loop_start = current_->function_->chunk.count;
+  int loop_start = current_->function->chunk.count;
   int exit_jump = -1;
   if (!Match(TokenType::SEMICOLON)) {
     Expression();
@@ -641,7 +644,7 @@ void Compiler::ForStatement() {
   // loop increment
   if (!Match(TokenType::RIGHT_PAREN)) {
     int body_jump = EmitJump(OP_JUMP);
-    int increment_start = current_->function_->chunk.count;
+    int increment_start = current_->function->chunk.count;
     Expression();
     EmitByte(OP_POP);
     Consume(TokenType::RIGHT_PAREN, "Expect ')' after 'for' clause.");
@@ -665,10 +668,10 @@ void Compiler::ForStatement() {
 }
 
 void Compiler::Function(FunctionType type) {
-  FuncScope new_func_scope{.func_type_ = type};
+  FuncScope new_func_scope{.function = NewFunction(), .func_type = type};
 
-  if (new_func_scope.func_type_ == FunctionType::FUNCTION) {
-    new_func_scope.function_->name =
+  if (new_func_scope.func_type == FunctionType::FUNCTION) {
+    new_func_scope.function->name =
         CopyString(parser_.previous.start, parser_.previous.length);
   }
 
@@ -681,8 +684,8 @@ void Compiler::Function(FunctionType type) {
 
   if (!Check(TokenType::RIGHT_PAREN)) {
     do {
-      current_->function_->arity++;
-      if (current_->function_->arity > 255) {
+      current_->function->arity++;
+      if (current_->function->arity > 255) {
         Error("Can't have more than 255 parameters.");
       }
 
