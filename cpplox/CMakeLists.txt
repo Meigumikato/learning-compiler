@@ -14,7 +14,7 @@ target_sources(
     cpplox
     PRIVATE
         main.cpp
-        memory.cpp
+        # memory.cpp
         debug.cpp
         chunk.cpp
         value.cpp
@@ -23,6 +23,8 @@ target_sources(
         compiler.cpp
         object.cpp
         table.cpp
+        compiler_common.cpp
+        parse_rule.cpp
 )
 target_compile_options(cpplox PRIVATE -fsanitize=address)
 target_link_options(cpplox PRIVATE -fsanitize=address)

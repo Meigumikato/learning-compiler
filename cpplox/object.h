@@ -19,8 +19,8 @@
 // using Object = std::variant<Obj, ObjString, ObjFunction>;
 
 // ObjFunction* NewFunction();
-String* TakeString(char* chars, int length);
-String* CopyString(const char* chars, int length);
+// String* TakeString(char* chars, int length);
+// String* CopyString(const char* chars, int length);
 //
 // void PrintObject(Value value);
 //

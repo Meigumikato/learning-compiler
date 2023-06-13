@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -21,34 +23,34 @@ class VM {
   inline static constexpr int FRAMES_MAX = 64;
   inline static constexpr int STACK_MAX = FRAMES_MAX * UINT8_MAX;
 
-  Chunk* chunk{};
-  uint8_t* ip{};  // pc
-  Value stack[STACK_MAX];
-  Value* stack_top{stack};
-
-  Object* objects{};
-
-  std::unordered_set<std::string> strings;
-  std::unordered_map<String*, Value> globals;
-
   struct CallFrame {
     Function* function{};
     uint8_t* ip{};
-    Value* slots{};
+    std::vector<Value>::iterator slots;
 
     ~CallFrame() {
       ip = nullptr;
-      slots = nullptr;
+      // slots = nullptr;
       // delete function;
     }
   };
+
+  VM() : stack(8191), stack_top(stack.begin()) {}
+
+  std::vector<Value> stack;
+  std::vector<Value>::iterator stack_top;
+
+  Object* objects{};
+
+  std::unordered_map<size_t, std::shared_ptr<std::string>> strings;
+  std::unordered_map<size_t, Value> globals;
 
   std::vector<CallFrame> frames;
 
   InterpreteResult Run();
 
   void ResetStack() {
-    stack_top = stack;
+    stack_top = stack.begin();
     objects = nullptr;
   }
 
@@ -80,12 +82,23 @@ class VM {
 
   Value Peek(int distance) { return stack_top[-1 - distance]; }
 
-  void Free();
-
-  void FreeObjects();
-
  public:
-  ~VM() { Free(); }
+  Value AllocateString(std::string_view str) {
+    size_t hash = std::hash<std::string_view>{}(str);
+
+    if (!strings.contains(hash)) {
+      strings[hash] = std::make_shared<std::string>(str);
+    }
+
+    String* string = new String();
+    string->content = strings[hash];
+    string->hash = hash;
+
+    string->next = objects;
+    objects = string;
+
+    return string;
+  }
 
   InterpreteResult Interpret(const char* source);
 

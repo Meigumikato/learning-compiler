@@ -15,7 +15,7 @@ LineInfo::~LineInfo() {}
 
 int LineInfo::GetLine(int offset) {
   int acc = 0;
-  for (int i = 0; i < count; ++i) {
+  for (int i = 0; i < lines.size(); ++i) {
     acc += lines[i].count;
     if (acc >= offset) {
       return lines[i].number;
@@ -26,7 +26,7 @@ int LineInfo::GetLine(int offset) {
 
 bool LineInfo::IsInSameLine(int offset1, int offset2) {
   int acc = 0;
-  for (int i = 0; i < count; ++i) {
+  for (int i = 0; i < lines.size(); ++i) {
     acc += lines[i].count;
     if (acc >= offset1) {
       if (acc >= offset2)

@@ -1,3 +1,5 @@
+#include <string_view>
+
 #include "compiler.h"
 #include "opcode.h"
 
@@ -55,12 +57,12 @@ void Compiler::EmitBytes(uint8_t byte1, uint8_t byte2) {
 }
 
 void Compiler::EmitReturn() {
-  EmitByte(static_cast<uint8_t>(OpCode::OP_NIL));
-  EmitByte(static_cast<uint8_t>(OpCode::OP_RETURN));
+  EmitByte(+OpCode::OP_NIL);
+  EmitByte(+OpCode::OP_RETURN);
 }
 
 void Compiler::EmitConstant(Value value) {
-  EmitBytes(static_cast<uint8_t>(OpCode::OP_CONSTANT), MakeConstant(value));
+  EmitBytes(+OpCode::OP_CONSTANT, MakeConstant(value));
 }
 
 uint8_t Compiler::MakeConstant(Value value) {
@@ -93,7 +95,7 @@ void Compiler::PatchJump(int offset) {
 }
 
 void Compiler::EmitLoop(int loop_start) {
-  EmitByte(static_cast<uint8_t>(OpCode::OP_LOOP));
+  EmitByte(+OpCode::OP_LOOP);
 
   int offset = current_->function->chunk.Count() - loop_start + 2;
   if (offset > UINT16_MAX) Error("Loop body too large.");
@@ -109,7 +111,7 @@ void Compiler::EndScope() {
 
   while (current_->locals.size() > 0 &&
          current_->locals.back().depth > current_->scope_depth_) {
-    EmitByte(static_cast<uint8_t>(OpCode::OP_POP));
+    EmitByte(+OpCode::OP_POP);
     current_->locals.pop_back();
   }
 }
@@ -124,7 +126,8 @@ void Compiler::AddLocal(Token name) {
 }
 
 uint8_t Compiler::IdentifierConstant(Token* name) {
-  return MakeConstant(CopyString(name->start, name->length));
+  return MakeConstant(
+      vm_->AllocateString(std::string_view(name->start, name->length)));
 }
 
 bool Compiler::IdentifierEqual(Token* a, Token* b) {

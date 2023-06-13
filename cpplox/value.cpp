@@ -26,9 +26,7 @@ bool ValuesEqual(Value a, Value b) {
             auto a_string = reinterpret_cast<String*>(a);
             auto b_string = reinterpret_cast<String*>(b);
 
-            return a_string->length == b_string->length &&
-                   memcmp(a_string->chars, b_string->chars, a_string->length) ==
-                       0;
+            return a_string->GetString() == b_string->GetString();
           },
           [](auto o1, auto o2) { return false; },
 
@@ -40,7 +38,7 @@ static void PrintObject(Object* obj) {
   switch (obj->type) {
     case ObjectType::String: {
       auto string = reinterpret_cast<String*>(obj);
-      printf("%s", string->chars);
+      printf("%s", string->content.lock()->c_str());
       break;
     }
     case ObjectType::Function: {
@@ -48,7 +46,8 @@ static void PrintObject(Object* obj) {
       if (function->name == nullptr) {
         printf("<script>");
       } else {
-        printf("%s -> %d\n", function->name->chars, function->arity);
+        printf("%s -> %d\n", function->name->content.lock()->c_str(),
+               function->arity);
       }
       break;
     }

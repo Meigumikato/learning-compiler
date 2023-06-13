@@ -1,8 +1,8 @@
 #pragma once
 
+#include <cstdlib>
 #include <string>
 #include <variant>
-#include <vector>
 
 #include "common.h"
 #include "scanner.h"
@@ -13,12 +13,33 @@ enum class ObjectType {
 };
 
 struct Object {
-  ObjectType type;
+  ObjectType type{};
   Object* next{};
 };
 
 struct String : Object {
-  std::string content;
+  size_t hash;
+  std::weak_ptr<std::string> content;
+
+  String() : Object() { type = ObjectType::String; }
+
+  const char* GetCString() {
+    auto sp = content.lock();
+    if (sp == nullptr) {
+      abort();
+    }
+
+    return sp->c_str();
+  }
+
+  const std::string GetString() {
+    auto sp = content.lock();
+    if (sp == nullptr) {
+      abort();
+    }
+
+    return *sp;
+  }
 };
 
 using Value = std::variant<std::monostate, bool, double, Object*>;

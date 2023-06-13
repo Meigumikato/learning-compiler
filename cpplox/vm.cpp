@@ -1,9 +1,8 @@
 #include "vm.h"
 
-#include <_ctype.h>
-
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <variant>
 
@@ -16,30 +15,19 @@
 #include "opcode.h"
 #include "value.h"
 
-String* VM::FindString(char* chars, int length, uint32_t hash) {
-  std::string temp(chars, length);
-  if (strings.contains(temp)) {
-    return;
-  }
-
-  return nullptr;
-}
-
-bool VM::InsertString(String* string) {
-  // return strings.insert(string, Value{});
-  return strings.insert(string).second;
-}
-
 InterpreteResult VM::Interpret(const char* source) {
-  Compiler compiler(source);
+  Compiler compiler(source, this);
 
-  auto function = compiler.Compile();
+  auto function = compiler.Compile().release();
 
   if (!function) return InterpreteResult::CompilerError;
 
-  Push(function.get());
+  function->next = objects;
+  objects = function;
 
-  Call(function.get(), 0);
+  Push(function);
+
+  Call(function, 0);
 
   return Run();
 }
@@ -71,7 +59,7 @@ void VM::RuntimeError(const char* format, ...) {
     if (function->name == nullptr) {
       fprintf(stderr, "script\n");
     } else {
-      fprintf(stderr, "%s()\n", function->name->chars);
+      fprintf(stderr, "%s()\n", function->name->GetCString());
     }
   }
 
@@ -88,16 +76,9 @@ void VM::Concatenate() {
   String* b = reinterpret_cast<String*>(std::get<Object*>(Pop()));
   String* a = reinterpret_cast<String*>(std::get<Object*>(Pop()));
 
-  int length = a->length + b->length;
-  char* chars = new char[length + 1];
-  memcpy(chars, a->chars, a->length);
-  memcpy(chars + a->length, b->chars, b->length);
+  auto result = a->GetString() + b->GetString();
 
-  chars[length] = '\0';
-
-  String* result = TakeString(chars, length);
-
-  Push(static_cast<Object*>(result));
+  Push(AllocateString(result));
 }
 
 static bool IsFalsey(Value value) {
@@ -175,7 +156,7 @@ T BinaryOp(auto a, auto b) {
 
 void VM::Debug() {
   printf("              ");
-  for (auto* slot = stack; slot < stack_top; slot++) {
+  for (auto slot = stack.begin(); slot < stack_top; ++slot) {
     printf("[ ");
     PrintValue(*slot);
     printf(" ]");
@@ -311,16 +292,17 @@ InterpreteResult VM::Run() {
 
       case +OP_DEFINE_GLOBAL: {
         auto name = ReadString();
-        globals.emplace(name, Pop());
+        globals.insert({name->hash, Pop()});
         break;
       }
       case +OP_GET_GLOBAL: {
         auto name = ReadString();
-        if (!globals.contains(name)) {
-          RuntimeError("Undefined variable '%s'.", name->chars);
+
+        if (!globals.contains(name->hash)) {
+          RuntimeError("Undefined variable '%s'.", name->GetCString());
           return InterpreteResult::RuntimeError;
         } else {
-          Push(globals[name]);
+          Push(globals[name->hash]);
         }
 
         break;
@@ -328,12 +310,12 @@ InterpreteResult VM::Run() {
 
       case +OP_SET_GLOBAL: {
         auto name = ReadString();
-        if (globals.contains(name)) {
-          RuntimeError("Undefined variable '%s'.", name->chars);
+        if (globals.contains(name->hash)) {
+          RuntimeError("Undefined variable '%s'.", name->GetCString());
           return InterpreteResult::RuntimeError;
         }
 
-        globals.emplace(name, Peek(0));
+        globals.insert({name->hash, Peek(0)});
 
         break;
       }

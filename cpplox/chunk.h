@@ -34,8 +34,6 @@ class Chunk {
   void Write(uint8_t byte, int line);
   void WriteConstant(Value value, int line);
 
-  ~Chunk();
-
   void Disassemble(const char* name);
 
   int AddConstant(Value value);
@@ -45,4 +43,6 @@ struct Function : Object {
   int arity{};
   Chunk chunk{};
   String* name{};
+
+  Function() : Object() { type = ObjectType::Function; }
 };

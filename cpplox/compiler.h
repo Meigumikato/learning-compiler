@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "chunk.h"
@@ -10,7 +11,8 @@
 
 class Compiler {
  public:
-  Compiler(const char* source) : source_(source), scanner_(source) {}
+  Compiler(const char* source, VM* vm)
+      : vm_(vm), source_(source), scanner_(source) {}
 
   std::unique_ptr<Function> Compile();
 
@@ -66,8 +68,12 @@ class Compiler {
     int scope_depth_{};
     std::vector<Local> locals;
 
+    FuncScope(FunctionType type)
+        : function(std::make_unique<Function>()), func_type(type) {}
     ~FuncScope() { enclosing = nullptr; }
   };
+
+  VM* vm_;
 
   FuncScope* current_;
 
@@ -180,7 +186,7 @@ class Compiler {
 
   void ForStatement();
 
-  void Function(FunctionType type);
+  void FunctionStatement(FunctionType type);
 
   void ExpressionStatement();
 

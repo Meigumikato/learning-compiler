@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <string_view>
 
 #include "chunk.h"
 #include "common.h"
@@ -12,7 +13,7 @@
 
 std::unique_ptr<Function> Compiler::Compile() {
   // TODO: ownership
-  FuncScope func_scope{.function = nullptr, .func_type = FunctionType::SCRIPT};
+  FuncScope func_scope(FunctionType::SCRIPT);
 
   func_scope.enclosing = current_;
   current_ = &func_scope;
@@ -36,13 +37,13 @@ std::unique_ptr<Function> Compiler::FinishCompile() {
   if (!parser_.had_error) {
     current_->function->chunk.Disassemble(
         current_->function->name != nullptr
-            ? current_->function->name->content.c_str()
+            ? current_->function->name->GetCString()
             : "<script>");
   }
 #endif
 
   auto function = std::move(current_->function);
-  current_ = std::move(current_->enclosing);
+  current_ = current_->enclosing;
 
   return function;
 }
@@ -194,8 +195,8 @@ void Compiler::Literal(bool can_assign) {
 }
 
 void Compiler::String(bool can_assign) {
-  EmitConstant(
-      CopyString(parser_.previous.start + 1, parser_.previous.length - 2));
+  EmitConstant(vm_->AllocateString(std::string_view(
+      parser_.previous.start + 1, parser_.previous.length - 2)));
 }
 
 void Compiler::Variable(bool can_assign) {
@@ -380,12 +381,12 @@ void Compiler::ForStatement() {
   EndScope();
 }
 
-void Compiler::Function(FunctionType type) {
-  FuncScope new_func_scope{.function = nullptr, .func_type = type};
+void Compiler::FunctionStatement(FunctionType type) {
+  FuncScope new_func_scope(type);
 
-  if (new_func_scope.func_type == FunctionType::FUNCTION) {
-    new_func_scope.function->name =
-        CopyString(parser_.previous.start, parser_.previous.length);
+  if (type == FunctionType::FUNCTION) {
+    new_func_scope.function->name = AsString(vm_->AllocateString(
+        std::string_view(parser_.previous.start, parser_.previous.length)));
   }
 
   new_func_scope.enclosing = current_;
@@ -463,7 +464,7 @@ void Compiler::VarDeclaration() {
 void Compiler::FunDeclaration() {
   uint8_t global = ParseVariable("Expect function name.");
   MarkInitialized();
-  Function(FunctionType::FUNCTION);
+  FunctionStatement(FunctionType::FUNCTION);
   DefineVariable(global);
 }
 
