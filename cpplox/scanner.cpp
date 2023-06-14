@@ -47,7 +47,7 @@ Token Scanner::String() {
   // The closing quote;
   Advance();
 
-  return MakeToken(TokenType::STRING);
+  return MakeToken(TokenType::String);
 }
 
 Token Scanner::Number() {
@@ -64,69 +64,95 @@ Token Scanner::Number() {
     }
   }
 
-  return MakeToken(TokenType::NUMBER);
+  return MakeToken(TokenType::Number);
 }
-TokenType Scanner::CheckKeyword(int begin, int length, const char* rest,
-                                TokenType type) {
-  if (begin + length == (int)(current - start) &&
-      memcmp(rest, start + begin, length) == 0) {
+TokenType Scanner::CheckKeyword(int begin, int length, const char* rest, TokenType type) {
+  if (begin + length == (int)(current - start) && memcmp(rest, start + begin, length) == 0) {
     return type;
   }
 
-  return TokenType::IDENTIFIER;
+  return TokenType::Identifier;
 }
 
 TokenType Scanner::IdentifierType() {
   switch (*start) {
     case 'a':
-      return CheckKeyword(1, 2, "nd", TokenType::AND);
-    case 'c':
-      return CheckKeyword(1, 4, "lass", TokenType::CLASS);
-    case 'e':
-      return CheckKeyword(1, 3, "lse", TokenType::ELSE);
-    case 'i':
-      return CheckKeyword(1, 1, "f", TokenType::IF);
-    case 'n':
-      return CheckKeyword(1, 2, "il", TokenType::NIL);
-    case 'o':
-      return CheckKeyword(1, 1, "r", TokenType::OR);
-    case 'p':
-      return CheckKeyword(1, 4, "rint", TokenType::PRINT);
-    case 'r':
-      return CheckKeyword(1, 5, "eturn", TokenType::RETURN);
-    case 's':
-      return CheckKeyword(1, 4, "uper", TokenType::SUPER);
-    case 'v':
-      return CheckKeyword(1, 2, "ar", TokenType::VAR);
-    case 'w':
-      return CheckKeyword(1, 4, "hile", TokenType::WHILE);
+      return CheckKeyword(1, 2, "nd", TokenType::And);
 
-    case 'f':
+    case 'b':
+      return CheckKeyword(1, 4, "reak", TokenType::Break);
+
+    case 'c': {
+      if (current - start > 1) {
+        switch (start[1]) {
+          case 'l':
+            return CheckKeyword(2, 3, "ass", TokenType::Switch);
+          case 'a':
+            return CheckKeyword(2, 2, "se", TokenType::Case);
+          case 'o':
+            return CheckKeyword(2, 6, "ntinue", TokenType::Continue);
+        }
+      }
+    }
+
+    case 'e':
+      return CheckKeyword(1, 3, "lse", TokenType::Else);
+    case 'i':
+      return CheckKeyword(1, 1, "f", TokenType::If);
+    case 'n':
+      return CheckKeyword(1, 2, "il", TokenType::Nil);
+    case 'o':
+      return CheckKeyword(1, 1, "r", TokenType::Or);
+    case 'p':
+      return CheckKeyword(1, 4, "rint", TokenType::Print);
+    case 'r':
+      return CheckKeyword(1, 5, "eturn", TokenType::Return);
+
+    case 's': {
+      if (current - start > 1) {
+        switch (start[1]) {
+          case 'w':
+            return CheckKeyword(2, 4, "itch", TokenType::Switch);
+          case 'u':
+            return CheckKeyword(2, 3, "per", TokenType::Super);
+        }
+      }
+      break;
+    }
+
+    case 'v':
+      return CheckKeyword(1, 2, "ar", TokenType::Var);
+    case 'w':
+      return CheckKeyword(1, 4, "hile", TokenType::While);
+
+    case 'f': {
       if (current - start > 1) {
         switch (start[1]) {
           case 'a':
-            return CheckKeyword(2, 3, "lse", TokenType::FALSE);
+            return CheckKeyword(2, 3, "lse", TokenType::False);
           case 'o':
-            return CheckKeyword(2, 1, "r", TokenType::FOR);
+            return CheckKeyword(2, 1, "r", TokenType::For);
           case 'u':
-            return CheckKeyword(2, 1, "n", TokenType::FUN);
+            return CheckKeyword(2, 1, "n", TokenType::Fun);
         }
       }
       break;
+    }
 
-    case 't':
+    case 't': {
       if (current - start > 1) {
         switch (start[1]) {
           case 'h':
-            return CheckKeyword(2, 2, "is", TokenType::THIS);
+            return CheckKeyword(2, 2, "is", TokenType::This);
           case 'r':
-            return CheckKeyword(2, 2, "ue", TokenType::TRUE);
+            return CheckKeyword(2, 2, "ue", TokenType::True);
         }
       }
       break;
+    }
   }
 
-  return TokenType::IDENTIFIER;
+  return TokenType::Identifier;
 }
 
 Token Scanner::Identifier() {
@@ -142,51 +168,47 @@ Token Scanner::ScanToken() {
 
   start = current;
 
-  if (IsAtEnd()) return MakeToken(TokenType::TEOF);
+  if (IsAtEnd()) return MakeToken(TokenType::Eof);
 
   char c = Advance();
 
   switch (c) {
     case '(':
-      return MakeToken(TokenType::LEFT_PAREN);
+      return MakeToken(TokenType::LeftParen);
     case ')':
-      return MakeToken(TokenType::RIGHT_PAREN);
+      return MakeToken(TokenType::RightParen);
     case '}':
-      return MakeToken(TokenType::RIGHT_BRACE);
+      return MakeToken(TokenType::RightBrace);
     case '{':
-      return MakeToken(TokenType::LEFT_BRACE);
+      return MakeToken(TokenType::LeftBrace);
     case ';':
-      return MakeToken(TokenType::SEMICOLON);
+      return MakeToken(TokenType::Semicolon);
     case ':':
-      return MakeToken(TokenType::COLON);
+      return MakeToken(TokenType::Colon);
     case ',':
-      return MakeToken(TokenType::COMMA);
+      return MakeToken(TokenType::Comma);
     case '.':
-      return MakeToken(TokenType::DOT);
+      return MakeToken(TokenType::Dot);
     case '-':
-      return MakeToken(TokenType::MINUS);
+      return MakeToken(TokenType::Minus);
     case '+':
-      return MakeToken(TokenType::PLUS);
+      return MakeToken(TokenType::Plus);
     case '/':
-      return MakeToken(TokenType::SLASH);
+      return MakeToken(TokenType::Slash);
     case '*':
-      return MakeToken(TokenType::STAR);
+      return MakeToken(TokenType::Star);
     case '?':
-      return MakeToken(TokenType::QUESTIONMARK);
+      return MakeToken(TokenType::QuestionMark);
 
     case '!':
-      return match('=') ? MakeToken(TokenType::BANG)
-                        : MakeToken(TokenType::BANG_EQUAL);
+      return match('=') ? MakeToken(TokenType::Bang) : MakeToken(TokenType::BangEqual);
 
     case '=':
-      return match('=') ? MakeToken(TokenType::EQUAL_EQUAL)
-                        : MakeToken(TokenType::EQUAL);
+      return match('=') ? MakeToken(TokenType::EqualEqual) : MakeToken(TokenType::Equal);
     case '<':
-      return match('=') ? MakeToken(TokenType::LESS_EQUAL)
-                        : MakeToken(TokenType::LESS);
+      return match('=') ? MakeToken(TokenType::LessEqual) : MakeToken(TokenType::Less);
     case '>':
-      return match('=') ? MakeToken(TokenType::GREATER_EQUAL)
-                        : MakeToken(TokenType::GREATER);
+      return match('=') ? MakeToken(TokenType::GreaterEqual) : MakeToken(TokenType::Greater);
 
     case '"':
       return String();

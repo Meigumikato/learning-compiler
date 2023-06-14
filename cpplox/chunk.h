@@ -4,19 +4,14 @@
 #include "value.h"
 
 struct LineInfo {
-  int count{};
-  int capacity{};
-
   struct Line {
     int number{};
     int count{};
   };
 
-  std::vector<Line> lines{};
+  std::vector<Line> lines;
 
   void Append(int line);
-
-  ~LineInfo();
 
   int GetLine(int offset);
 
@@ -31,18 +26,12 @@ class Chunk {
   LineInfo line_info;
   std::vector<Value> constants;
 
-  void Write(uint8_t byte, int line);
-  void WriteConstant(Value value, int line);
+  auto GetCodeBegin() { return code.begin(); }
 
-  void Disassemble(const char* name);
+  auto Write(uint8_t byte, int line) -> void;
+  auto WriteConstant(Value value, int line);
 
-  int AddConstant(Value value);
-};
+  auto Disassemble(const char* name) -> void;
 
-struct Function : Object {
-  int arity{};
-  Chunk chunk{};
-  String* name{};
-
-  Function() : Object() { type = ObjectType::Function; }
+  auto AddConstant(Value value) -> int;
 };

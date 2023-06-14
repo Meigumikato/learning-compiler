@@ -3,53 +3,58 @@
 #include <cstring>
 enum class TokenType {
   // Single-character tokens.
-  LEFT_PAREN,
-  RIGHT_PAREN,
-  LEFT_BRACE,
-  RIGHT_BRACE,
-  COMMA,
-  COLON,
-  DOT,
-  MINUS,
-  PLUS,
-  SEMICOLON,
-  SLASH,
-  STAR,
-  QUESTIONMARK,
+  LeftParen,
+  RightParen,
+  LeftBrace,
+  RightBrace,
+  Comma,
+  Colon,
+  Dot,
+  Minus,
+  Plus,
+  Semicolon,
+  Slash,
+  Star,
+  QuestionMark,
 
   // One or two character tokens.
-  BANG,
-  BANG_EQUAL,
-  EQUAL,
-  EQUAL_EQUAL,
-  GREATER,
-  GREATER_EQUAL,
-  LESS,
-  LESS_EQUAL,
+  Bang,
+  BangEqual,
+  Equal,
+  EqualEqual,
+  Greater,
+  GreaterEqual,
+  Less,
+  LessEqual,
   // Literals.
-  IDENTIFIER,
-  STRING,
-  NUMBER,
+  Identifier,
+  String,
+  Number,
   // Keywords.
-  AND,
-  CLASS,
-  ELSE,
-  FALSE,
-  FOR,
-  FUN,
-  IF,
-  NIL,
-  OR,
-  PRINT,
-  RETURN,
-  SUPER,
-  THIS,
-  TRUE,
-  VAR,
-  WHILE,
+  And,
+  Class,
+  Else,
+  False,
+  For,
+  Fun,
+  If,
+  Nil,
+  Or,
+  Print,
+  Return,
+  Super,
+  This,
+  True,
+  Var,
+  While,
+  Switch,
+  Case,
+  Default,
+  Break,
+  Continue,
 
-  ERROR,
-  TEOF,
+  Error,
+  Eof,
 
   SENTINAL,
 };
@@ -92,24 +97,19 @@ class Scanner {
 
   bool IsDigit(char c) { return c >= '0' && c <= '9'; }
 
-  bool IsAlpha(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-  }
+  bool IsAlpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
 
   void SkipWhiteSpace();
 
   Token MakeToken(TokenType type) {
-    return Token{.type = type,
-                 .start = start,
-                 .length = (int)(current - start),
-                 .line = line
+    return Token{.type = type, .start = start, .length = (int)(current - start), .line = line
 
     };
   }
 
   Token ErrorToken(const char* message) {
     return Token{
-        .type = TokenType::ERROR,
+        .type = TokenType::Error,
         .start = message,
         .length = (int)strlen(message),
         .line = line,
@@ -120,8 +120,7 @@ class Scanner {
 
   Token Number();
 
-  TokenType CheckKeyword(int start, int length, const char* rest,
-                         TokenType type);
+  TokenType CheckKeyword(int start, int length, const char* rest, TokenType type);
 
   TokenType IdentifierType();
 

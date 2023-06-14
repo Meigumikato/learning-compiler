@@ -31,15 +31,21 @@ enum class OpCode : uint8_t {
 
   OP_JUMP,
   OP_JUMP_IF_FALSE,
+  OP_JUMP_IF_LESS,
+  OP_JUMP_IF_EQUAL,
+  OP_JUMP_IF_NO_EQUAL,
+  OP_JUMP_IF_GREATER,
 
   OP_LOOP,
 
   OP_CALL,
 
+  OP_COMPARE,  // 0, 1, 2
+
   OP_DEFINE_GLOBAL,
   OP_CONSTANT_LONG,
 };
 
-constexpr auto operator+(OpCode a) noexcept {
-  return static_cast<std::underlying_type_t<OpCode>>(a);
-}
+// constexpr auto operator+(OpCode a) noexcept {
+//   return static_cast<std::underlying_type_t<OpCode>>(a);
+// }

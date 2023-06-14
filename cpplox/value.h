@@ -1,15 +1,21 @@
 #pragma once
 
+#include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <memory>
 #include <string>
 #include <variant>
 
 #include "common.h"
 #include "scanner.h"
 
+class Chunk;
+
 enum class ObjectType {
   String,
   Function,
+  NativeFunction,
 };
 
 struct Object {
@@ -42,30 +48,48 @@ struct String : Object {
   }
 };
 
-using Value = std::variant<std::monostate, bool, double, Object*>;
+struct Function : Object {
+  int arity{};
+  std::unique_ptr<Chunk> chunk{};
+  String* name{};
 
-constexpr inline bool IsNil(Value value) {
-  return std::holds_alternative<std::monostate>(value);
+  Function();
+
+  const char* GetName() {
+    assert(name != nullptr);
+    return name->GetCString();
+  }
+};
+
+using Nil = std::monostate;
+using Value = std::variant<Nil, bool, double, Object*>;
+
+using NativeFunctor = std::function<int(int argc, Value* argv)>;
+struct NativeFunction : Object {
+  String* name{};
+  NativeFunctor native_functor;
+};
+
+inline NativeFunction* NewNativeFunction(String* name, NativeFunctor functor) {
+  NativeFunction* nf = new NativeFunction{.name = name, .native_functor = functor};
+  nf->type = ObjectType::NativeFunction;
+  return nf;
 }
 
+constexpr inline bool IsNil(Value value) { return std::holds_alternative<std::monostate>(value); }
+
 constexpr inline bool IsString(Value value) {
-  if (std::holds_alternative<Object*>(value)) {
+  if (!std::holds_alternative<Object*>(value)) {
     return false;
   }
   return std::get<Object*>(value)->type == ObjectType::String;
 }
 
-inline String* AsString(Value value) {
-  return reinterpret_cast<String*>(std::get<Object*>(value));
-}
+inline String* AsString(Value value) { return reinterpret_cast<String*>(std::get<Object*>(value)); }
 
-constexpr inline bool IsNumber(Value value) {
-  return std::holds_alternative<double>(value);
-}
+constexpr inline bool IsNumber(Value value) { return std::holds_alternative<double>(value); }
 
-constexpr inline double AsNumber(Value value) {
-  return std::get<double>(value);
-}
+constexpr inline double AsNumber(Value value) { return std::get<double>(value); }
 
 bool ValuesEqual(Value a, Value b);
 void PrintValue(Value value);

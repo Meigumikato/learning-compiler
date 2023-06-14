@@ -7,6 +7,8 @@
 
 #include "chunk.h"
 
+Function::Function() : Object(), chunk(std::make_unique<Chunk>()) { type = ObjectType::Function; }
+
 // helper type for the visitor #4
 template <class... Ts>
 struct Overloaded : Ts... {
@@ -17,28 +19,27 @@ template <class... Ts>
 Overloaded(Ts...) -> Overloaded<Ts...>;
 
 bool ValuesEqual(Value a, Value b) {
-  return std::visit(
-      Overloaded{
-          [](std::monostate b1, std::monostate b2) { return true; },
-          [](bool b1, bool b2) { return b1 == b2; },
-          [](double d1, double d2) { return d1 == d2; },
-          [](Object* a, Object* b) {
-            auto a_string = reinterpret_cast<String*>(a);
-            auto b_string = reinterpret_cast<String*>(b);
+  return std::visit(Overloaded{
+                        [](Nil b1, Nil b2) { return true; },
+                        [](bool b1, bool b2) { return b1 == b2; },
+                        [](double d1, double d2) { return d1 == d2; },
+                        [](Object* a, Object* b) {
+                          auto a_string = reinterpret_cast<String*>(a);
+                          auto b_string = reinterpret_cast<String*>(b);
 
-            return a_string->GetString() == b_string->GetString();
-          },
-          [](auto o1, auto o2) { return false; },
+                          return a_string->GetString() == b_string->GetString();
+                        },
+                        [](auto o1, auto o2) { return false; },
 
-      },
-      a, b);
+                    },
+                    a, b);
 }
 
 static void PrintObject(Object* obj) {
   switch (obj->type) {
     case ObjectType::String: {
       auto string = reinterpret_cast<String*>(obj);
-      printf("%s", string->content.lock()->c_str());
+      printf("%s", string->GetCString());
       break;
     }
     case ObjectType::Function: {
@@ -46,9 +47,13 @@ static void PrintObject(Object* obj) {
       if (function->name == nullptr) {
         printf("<script>");
       } else {
-        printf("%s -> %d\n", function->name->content.lock()->c_str(),
-               function->arity);
+        printf("<fn %s -> %d>", function->name->GetCString(), function->arity);
       }
+      break;
+    }
+    case ObjectType::NativeFunction: {
+      auto function = reinterpret_cast<NativeFunction*>(obj);
+      printf("<native_fn %s>", function->name->GetCString());
       break;
     }
     default:
@@ -57,9 +62,7 @@ static void PrintObject(Object* obj) {
 }
 
 void PrintValue(Value value) {
-  std::visit(Overloaded{[](bool b) { printf(b ? "true" : "false"); },
-                        [](double b) { printf("%g", b); },
-                        [](std::monostate m) { printf("nil"); },
-                        [](Object* o) { PrintObject(o); }},
+  std::visit(Overloaded{[](bool b) { printf(b ? "true" : "false"); }, [](double b) { printf("%g", b); },
+                        [](std::monostate m) { printf("nil"); }, [](Object* o) { PrintObject(o); }},
              value);
 }

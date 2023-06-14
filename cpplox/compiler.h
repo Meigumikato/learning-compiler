@@ -1,9 +1,5 @@
 #pragma once
 
-#include <cstdint>
-#include <memory>
-#include <vector>
-
 #include "chunk.h"
 #include "object.h"
 #include "scanner.h"
@@ -11,8 +7,7 @@
 
 class Compiler {
  public:
-  Compiler(const char* source, VM* vm)
-      : vm_(vm), source_(source), scanner_(source) {}
+  Compiler(const char* source, VM* vm) : vm_(vm), source_(source), scanner_(source) {}
 
   std::unique_ptr<Function> Compile();
 
@@ -37,7 +32,7 @@ class Compiler {
   enum Precedence {
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
-    PREC_TERNARY,
+    PREC_TERNARY,     // ?
     PREC_OR,          // or
     PREC_AND,         // and
     PREC_EQUALITY,    // == !=
@@ -57,6 +52,13 @@ class Compiler {
     Compiler::Precedence precedence{};
   };
 
+  struct Loop {
+    int start;
+    int stop;
+    std::vector<uint8_t> breaks;
+    std::vector<uint8_t> continues;
+  };
+
   struct FuncScope {
     // ref
     FuncScope* enclosing{};
@@ -66,10 +68,19 @@ class Compiler {
     FunctionType func_type;
 
     int scope_depth_{};
-    std::vector<Local> locals;
+    int loop_depth_{};
 
-    FuncScope(FunctionType type)
-        : function(std::make_unique<Function>()), func_type(type) {}
+    std::vector<Local> locals;
+    std::vector<Loop> loops;
+
+    FuncScope(FunctionType type) : function(std::make_unique<Function>()), func_type(type) {
+      Local local;
+      local.name.start = "";
+      local.name.length = 0;
+      local.depth = 0;
+
+      locals.push_back(local);
+    }
     ~FuncScope() { enclosing = nullptr; }
   };
 
@@ -77,7 +88,7 @@ class Compiler {
 
   FuncScope* current_;
 
-  static const ParseRule rules[(int)TokenType::SENTINAL];
+  static const ParseRule rules[];
 
   const char* source_;
 
@@ -87,9 +98,7 @@ class Compiler {
 
   static const ParseRule* GetRule(TokenType type);
 
-  void ErrorAtCurrent(const char* message) {
-    ErrorAt(&parser_.current, message);
-  }
+  void ErrorAtCurrent(const char* message) { ErrorAt(&parser_.current, message); }
 
   bool Match(TokenType type);
   bool Check(TokenType type);
@@ -116,13 +125,19 @@ class Compiler {
 
   uint16_t EmitJump(uint8_t Instruction);
 
-  void EmitLoop(int loop_start);
+  uint16_t EmitLoop(int loop_start);
 
   void PatchJump(int offset);
+
+  void PatchJumpWithOffset(int offset, uint16_t dest);
 
   void BeginScope();
 
   void EndScope();
+
+  void BeginLoop();
+
+  void EndLoop();
 
   bool IdentifierEqual(Token* a, Token* b);
 
@@ -146,33 +161,29 @@ class Compiler {
 
   void Number(bool can_assign);
 
+  void Literal(bool can_assign);
+
+  void String(bool can_assign);
+
+  void Variable(bool can_assign);
+  void NamedVariable(Token token, bool can_assign);
+
+  void Call(bool can_assign);
+  uint8_t ArgumentList();
+
   void Grouping(bool can_assign);
 
   void Unary(bool can_assign);
 
   void Binary(bool can_assign);
 
-  void Ternary(bool can_assign);
-
-  void Literal(bool can_assign);
-
-  void String(bool can_assign);
-
-  void Variable(bool can_assign);
-
   void And(bool can_assign);
 
   void Or(bool can_assign);
 
-  uint8_t ArgumentList();
-
-  void Call(bool can_assign);
-
-  void NamedVariable(Token token, bool can_assign);
+  void Ternary(bool can_assign);
 
   void Expression();
-
-  void Statement();
 
   void PrintStatement();
 
@@ -184,11 +195,19 @@ class Compiler {
 
   void ReturnStatement();
 
+  void ContinueStatement();
+
+  void BreakStatement();
+
   void ForStatement();
+
+  void SwitchStatement();
 
   void FunctionStatement(FunctionType type);
 
   void ExpressionStatement();
+
+  void Statement();
 
   void VarDeclaration();
 

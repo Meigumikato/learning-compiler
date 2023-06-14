@@ -1,19 +1,27 @@
 #include "vm.h"
 
-#include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <variant>
+#include <iterator>
 
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "ffi.h"
 #include "memory.h"
 #include "object.h"
 #include "opcode.h"
+#include "parser.h"
 #include "value.h"
+
+int FFI = []() -> int {
+  DefineNativeFunction("unix", &Unix);
+  return 10;
+}();
+
+VM::VM() : stack(8191), stack_top(stack.begin()), frames(256), frame_pointer_(frames.begin()) {
+  // DefineNativeFunction("unix", &Unix);
+}
 
 InterpreteResult VM::Interpret(const char* source) {
   Compiler compiler(source, this);
@@ -22,14 +30,19 @@ InterpreteResult VM::Interpret(const char* source) {
 
   if (!function) return InterpreteResult::CompilerError;
 
-  function->next = objects;
-  objects = function;
+  InsertObject(function);
 
   Push(function);
 
   Call(function, 0);
 
   return Run();
+  //
+  // Parser parser(source);
+  //
+  // parser.Parse();
+  //
+  // return InterpreteResult::Ok;
 }
 
 void VM::InsertObject(Object* object) {
@@ -51,10 +64,9 @@ void VM::RuntimeError(const char* format, ...) {
     auto frame = &frames[i];
     auto function = frame->function;
 
-    size_t instruction = frame->ip - function->chunk.code.data() - 1;
+    size_t instruction = frame->ip - function->chunk->code.begin() - 1;
 
-    fprintf(stderr, "[line %d] in ",
-            function->chunk.line_info.GetLine(instruction));
+    fprintf(stderr, "[line %d] in ", function->chunk->line_info.GetLine(instruction));
 
     if (function->name == nullptr) {
       fprintf(stderr, "script\n");
@@ -63,10 +75,11 @@ void VM::RuntimeError(const char* format, ...) {
     }
   }
 
-  auto frame = &frames.back();
+  auto frame = frame_pointer_ - 1;
 
-  auto instruction = frame->ip - frame->function->chunk.code.data() - 1;
-  auto line = frame->function->chunk.line_info.GetLine(instruction);
+  auto instruction = frame->ip - frame->function->chunk->code.begin() - 1;
+  auto line = frame->function->chunk->line_info.GetLine(instruction);
+
   fprintf(stderr, "[line %d] in script", line);
 
   ResetStack();
@@ -88,17 +101,26 @@ static bool IsFalsey(Value value) {
 
 bool VM::Call(Function* function, int arg_count) {
   if (arg_count != function->arity) {
-    RuntimeError("Expected %d arguments but got %d", function->arity,
-                 arg_count);
+    RuntimeError("Expected %d arguments but got %d", function->arity, arg_count);
     return false;
   }
 
-  frames.emplace_back();
-  frames.back().function = function;
-  frames.back().ip = function->chunk.code.data();
-  frames.back().slots = stack_top - arg_count - 1;
+  auto frame = frame_pointer_++;
+  frame->function = function;
+  frame->ip = function->chunk->code.begin();
+  frame->slots = stack_top - arg_count - 1;
 
-  auto frame = &frames.back();
+  return true;
+}
+
+bool VM::CallNative(NativeFunction* function, int arg_count) {
+  double result = function->native_functor(arg_count, std::addressof(*(stack_top - arg_count - 1)));
+
+  // auto frame = frame_pointer_ - 1;
+  // frame->slots = stack_top - arg_count - 1;
+  stack_top -= arg_count + 1;
+
+  Push(result);
 
   return true;
 }
@@ -109,6 +131,8 @@ bool VM::CallValue(Value callee, int arg_count) {
     switch (obj->type) {
       case ObjectType::Function:
         return Call(reinterpret_cast<Function*>(obj), arg_count);
+      case ObjectType::NativeFunction:
+        return CallNative(reinterpret_cast<NativeFunction*>(obj), arg_count);
       default:
         break;
     }
@@ -119,15 +143,21 @@ bool VM::CallValue(Value callee, int arg_count) {
   return false;
 }
 
-uint8_t VM::ReadByte() { return *current_frame_->ip++; }
+uint8_t VM::ReadByte() {
+  auto frame = frame_pointer_ - 1;
+  return *(frame->ip++);
+}
 
 uint16_t VM::ReadShort() {
-  current_frame_->ip += 2;
-  return (current_frame_->ip[-2] << 8) | current_frame_->ip[-1];
+  auto frame = frame_pointer_ - 1;
+  frame->ip += 2;
+
+  return (frame->ip[-2] << 8) | frame->ip[-1];
 }
 
 Value VM::ReadConstant() {
-  return current_frame_->function->chunk.constants[ReadByte()];
+  auto frame = frame_pointer_ - 1;
+  return frame->function->chunk->constants[ReadByte()];
 }
 
 String* VM::ReadString() { return AsString(ReadConstant()); }
@@ -135,7 +165,10 @@ String* VM::ReadString() { return AsString(ReadConstant()); }
 enum class Operation { Add, Sub, Mul, Div, Greater, Less, Equal };
 
 template <Operation op, typename T>
-T BinaryOp(auto a, auto b) {
+T BinaryOp(VM* vm) {
+  double b = AsNumber(vm->Pop());
+  double a = AsNumber(vm->Pop());
+
   switch (op) {
     case Operation::Add:
       return a + b;
@@ -149,43 +182,55 @@ T BinaryOp(auto a, auto b) {
       return a > b;
     case Operation::Less:
       return a < b;
-    case Operation::Equal:
-      return a == b;
+  }
+}
+
+template <Operation op>
+void BinaryOp(VM* vm) {
+  switch (op) {
+    case Operation::Add:
+      vm->Concatenate();
+    default:
+      abort();
   }
 }
 
 void VM::Debug() {
-  printf("              ");
+  printf("     stack        ");
   for (auto slot = stack.begin(); slot < stack_top; ++slot) {
-    printf("[ ");
+    printf("[");
     PrintValue(*slot);
-    printf(" ]");
+    printf(":%ld]", stack_top - slot);
   }
+
+  printf("[*top*]");
   printf("\n");
 
-  disassembleInstruction(
-      &current_frame_->function->chunk,
-      (int)(current_frame_->ip - current_frame_->function->chunk.code.data()));
+  auto frame = frame_pointer_ - 1;
+
+  int diff = std::distance(frame->function->chunk->GetCodeBegin(), frame->ip);
+  disassembleInstruction(frame->function->chunk.get(), diff);
 }
 
 InterpreteResult VM::Run() {
-  current_frame_ = &frames.back();
+  auto current_frame = frame_pointer_ - 1;
 
+  printf("\n======================= run trace ============================\n");
   for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
     Debug();
 #endif
 
     uint8_t instruction;
+
     using enum OpCode;
+
     switch (instruction = ReadByte()) {
       case +OP_ADD: {
         if (IsString(Peek(0)) && IsString(Peek(1))) {
           Concatenate();
         } else if (IsNumber(Peek(0)) && IsNumber(Peek(1))) {
-          double b = AsNumber(Pop());
-          double a = AsNumber(Pop());
-          Push(BinaryOp<Operation::Add, double>(a, b));
+          Push(BinaryOp<Operation::Add, double>(this));
         } else {
           RuntimeError("Operands must be tow numbers or two strings.");
           return InterpreteResult::RuntimeError;
@@ -193,23 +238,27 @@ InterpreteResult VM::Run() {
         break;
       }
       case +OP_SUBTRACT: {
-        double b = AsNumber(Pop());
-        double a = AsNumber(Pop());
-        Push(BinaryOp<Operation::Sub, double>(a, b));
+        Push(BinaryOp<Operation::Sub, double>(this));
         break;
       }
 
       case +OP_MULTIPLY: {
-        double b = AsNumber(Pop());
-        double a = AsNumber(Pop());
-        Push(BinaryOp<Operation::Mul, double>(a, b));
+        Push(BinaryOp<Operation::Mul, double>(this));
         break;
       }
 
       case +OP_DIVIDE: {
-        double b = AsNumber(Pop());
-        double a = AsNumber(Pop());
-        Push(BinaryOp<Operation::Div, double>(a, b));
+        Push(BinaryOp<Operation::Div, double>(this));
+        break;
+      }
+
+      case +OP_GREATER: {
+        Push(BinaryOp<Operation::Greater, bool>(this));
+        break;
+      }
+
+      case +OP_LESS: {
+        Push(BinaryOp<Operation::Less, bool>(this));
         break;
       }
 
@@ -218,7 +267,7 @@ InterpreteResult VM::Run() {
         break;
 
       case +OP_NEGATE: {
-        if (IsNumber(Peek(0))) {
+        if (!IsNumber(Peek(0))) {
           RuntimeError("Operand is must be a number.");
           return InterpreteResult::RuntimeError;
         }
@@ -239,33 +288,34 @@ InterpreteResult VM::Run() {
 
       case +OP_RETURN: {
         auto result = Pop();
+        frame_pointer_--;
 
-        if (frames.size() - 1 == 0) {
+        if (frame_pointer_ == frames.begin()) {
           Pop();
           return InterpreteResult::Ok;
         }
 
-        stack_top = current_frame_->slots;
+        stack_top = current_frame->slots;
         Push(result);
 
-        frames.pop_back();
-        current_frame_ = &frames.back();
+        current_frame = frame_pointer_ - 1;
 
-        return InterpreteResult::Ok;
+        break;
       }
 
       case +OP_CONSTANT: {
-        auto constant = ReadConstant();
-        Push(constant);
+        Push(ReadConstant());
         break;
       }
 
       case +OP_NIL:
-        Push(std::monostate{});
+        Push(Nil{});
         break;
+
       case +OP_TRUE:
         Push(true);
         break;
+
       case +OP_FALSE:
         Push(false);
         break;
@@ -274,27 +324,31 @@ InterpreteResult VM::Run() {
         Value b = Pop();
         Value a = Pop();
         Push(ValuesEqual(a, b));
-      } break;
-
-      case +OP_GREATER: {
-        double b = AsNumber(Pop());
-        double a = AsNumber(Pop());
-        Push(BinaryOp<Operation::Greater, bool>(a, b));
         break;
       }
 
-      case +OP_LESS: {
-        double b = AsNumber(Pop());
-        double a = AsNumber(Pop());
-        Push(BinaryOp<Operation::Less, bool>(a, b));
+      case +OP_COMPARE: {
+        double b = std::get<double>(Pop());
+        double a = std::get<double>(Peek(0));
+
+        if (a > b) {
+          Push(1.0);
+        } else if (a == b) {
+          Push(0.0);
+        } else {
+          Push(-1.0);
+        }
+
         break;
       }
 
       case +OP_DEFINE_GLOBAL: {
         auto name = ReadString();
+        // allow global variable redefine
         globals.insert({name->hash, Pop()});
         break;
       }
+
       case +OP_GET_GLOBAL: {
         auto name = ReadString();
 
@@ -310,43 +364,54 @@ InterpreteResult VM::Run() {
 
       case +OP_SET_GLOBAL: {
         auto name = ReadString();
-        if (globals.contains(name->hash)) {
+        if (!globals.contains(name->hash)) {
           RuntimeError("Undefined variable '%s'.", name->GetCString());
           return InterpreteResult::RuntimeError;
         }
 
-        globals.insert({name->hash, Peek(0)});
-
+        globals[name->hash] = Peek(0);
         break;
       }
 
       case +OP_GET_LOCAL: {
         uint8_t slot = ReadByte();
-        Push(current_frame_->slots[slot]);
+        Push(current_frame->slots[slot]);
         break;
       }
 
       case +OP_SET_LOCAL: {
         auto slot = ReadByte();
-        current_frame_->slots[slot] = Peek(0);
+        current_frame->slots[slot] = Peek(0);
         break;
       }
 
       case +OP_JUMP: {
         auto offset = ReadShort();
-        current_frame_->ip += offset;
+        current_frame->ip += offset;
         break;
       }
 
       case +OP_JUMP_IF_FALSE: {
         auto offset = ReadShort();
-        if (IsFalsey(Peek(0))) current_frame_->ip += offset;
+        if (IsFalsey(Peek(0))) current_frame->ip += offset;
+        break;
+      }
+
+      case +OP_JUMP_IF_EQUAL: {
+        auto offset = ReadShort();
+        if (std::get<double>(Peek(0)) == 0) current_frame->ip += offset;
+        break;
+      }
+
+      case +OP_JUMP_IF_NO_EQUAL: {
+        auto offset = ReadShort();
+        if (std::get<double>(Peek(0)) != 0) current_frame->ip += offset;
         break;
       }
 
       case +OP_LOOP: {
         uint16_t offset = ReadShort();
-        current_frame_->ip -= offset;
+        current_frame->ip -= offset;
         break;
       }
 
@@ -355,6 +420,9 @@ InterpreteResult VM::Run() {
         if (!CallValue(Peek(arg_count), arg_count)) {
           return InterpreteResult::RuntimeError;
         }
+
+        // change to call frame
+        current_frame = frame_pointer_ - 1;
         break;
       }
     }

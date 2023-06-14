@@ -1,5 +1,7 @@
 #pragma once
 
+#include <_types/_uint8_t.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -19,33 +21,28 @@ enum class InterpreteResult {
 };
 
 class VM {
- private:
+ public:
   inline static constexpr int FRAMES_MAX = 64;
   inline static constexpr int STACK_MAX = FRAMES_MAX * UINT8_MAX;
 
   struct CallFrame {
     Function* function{};
-    uint8_t* ip{};
+    std::vector<uint8_t>::iterator ip;
     std::vector<Value>::iterator slots;
-
-    ~CallFrame() {
-      ip = nullptr;
-      // slots = nullptr;
-      // delete function;
-    }
   };
 
-  VM() : stack(8191), stack_top(stack.begin()) {}
+  VM();
 
   std::vector<Value> stack;
   std::vector<Value>::iterator stack_top;
 
   Object* objects{};
 
-  std::unordered_map<size_t, std::shared_ptr<std::string>> strings;
   std::unordered_map<size_t, Value> globals;
+  std::unordered_map<size_t, std::shared_ptr<std::string>> strings;
 
   std::vector<CallFrame> frames;
+  std::vector<CallFrame>::iterator frame_pointer_;
 
   InterpreteResult Run();
 
@@ -63,6 +60,7 @@ class VM {
   String* ReadString();
 
   bool Call(Function* function, int arg_count);
+  bool CallNative(NativeFunction* function, int arg_count);
 
   bool CallValue(Value callee, int arg_count);
 
@@ -94,8 +92,7 @@ class VM {
     string->content = strings[hash];
     string->hash = hash;
 
-    string->next = objects;
-    objects = string;
+    InsertObject(string);
 
     return string;
   }
@@ -109,11 +106,5 @@ class VM {
 
   void Debug();
 
-  CallFrame* current_frame_;
-
   void InsertObject(Object* object);
-
-  bool InsertString(String* string);
-
-  String* FindString(const char* chars, int length, uint32_t hash);
 };

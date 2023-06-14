@@ -1,5 +1,7 @@
+#include <ios>
 #include <string_view>
 
+#include "chunk.h"
 #include "compiler.h"
 #include "opcode.h"
 
@@ -9,7 +11,7 @@ void Compiler::Advance() {
   for (;;) {
     parser_.current = scanner_.ScanToken();
 
-    if (parser_.current.type != TokenType::ERROR) break;
+    if (parser_.current.type != TokenType::Error) break;
     ErrorAtCurrent(parser_.current.start);
   }
 }
@@ -27,9 +29,9 @@ void Compiler::ErrorAt(Token* token, const char* message) {
   parser_.panic_mode = true;
   fprintf(stderr, "[line %d] Error", token->line);
 
-  if (token->type == TokenType::TEOF) {
+  if (token->type == TokenType::Eof) {
     fprintf(stderr, " at end");
-  } else if (token->type == TokenType::ERROR) {
+  } else if (token->type == TokenType::Error) {
   } else {
     fprintf(stderr, " at '%.*s'", token->length, token->start);
   }
@@ -47,9 +49,7 @@ void Compiler::Consume(TokenType type, const char* message) {
   ErrorAtCurrent(message);
 }
 
-void Compiler::EmitByte(uint8_t byte) {
-  current_->function->chunk.Write(byte, parser_.previous.line);
-}
+void Compiler::EmitByte(uint8_t byte) { current_->function->chunk->Write(byte, parser_.previous.line); }
 
 void Compiler::EmitBytes(uint8_t byte1, uint8_t byte2) {
   EmitByte(byte1);
@@ -61,12 +61,10 @@ void Compiler::EmitReturn() {
   EmitByte(+OpCode::OP_RETURN);
 }
 
-void Compiler::EmitConstant(Value value) {
-  EmitBytes(+OpCode::OP_CONSTANT, MakeConstant(value));
-}
+void Compiler::EmitConstant(Value value) { EmitBytes(+OpCode::OP_CONSTANT, MakeConstant(value)); }
 
 uint8_t Compiler::MakeConstant(Value value) {
-  int constant = current_->function->chunk.AddConstant(value);
+  int constant = current_->function->chunk->AddConstant(value);
   if (constant > UINT8_MAX) {
     // TODO: OP_CONSTANT_LONG
     Error("Too may constants in one chunk.");
@@ -81,27 +79,39 @@ uint16_t Compiler::EmitJump(uint8_t instruction) {
   // jump offset 16byte
   EmitBytes(0xff, 0xff);
 
-  return current_->function->chunk.Count() - 2;
+  return current_->function->chunk->Count() - 2;
 }
 
-void Compiler::PatchJump(int offset) {
-  int jump = current_->function->chunk.Count() - offset - 2;
-  if (jump > UINT16_MAX) {
-    Error("Too much code to jump over.");
-  }
-
-  current_->function->chunk.code[offset] = (jump >> 8) & 0xff;
-  current_->function->chunk.code[offset + 1] = jump & 0xff;
-}
-
-void Compiler::EmitLoop(int loop_start) {
+uint16_t Compiler::EmitLoop(int loop_start) {
   EmitByte(+OpCode::OP_LOOP);
 
-  int offset = current_->function->chunk.Count() - loop_start + 2;
+  int offset = current_->function->chunk->Count() - loop_start + 2;
   if (offset > UINT16_MAX) Error("Loop body too large.");
 
   EmitByte((offset >> 8) & 0xff);
   EmitByte(offset & 0xff);
+
+  return current_->function->chunk->Count() - 2;
+}
+
+void Compiler::PatchJump(int offset) {
+  int jump = current_->function->chunk->Count() - offset - 2;
+  if (jump > UINT16_MAX) {
+    Error("Too much code to jump over.");
+  }
+
+  current_->function->chunk->code[offset] = (jump >> 8) & 0xff;
+  current_->function->chunk->code[offset + 1] = jump & 0xff;
+}
+
+void Compiler::PatchJumpWithOffset(int offset, uint16_t dest) {
+  // int jump = current_->function->chunk->Count() - offset - 2;
+  if (dest > UINT16_MAX) {
+    Error("Too much code to jump over.");
+  }
+
+  current_->function->chunk->code[offset] = (dest >> 8) & 0xff;
+  current_->function->chunk->code[offset + 1] = dest & 0xff;
 }
 
 void Compiler::BeginScope() { current_->scope_depth_++; }
@@ -109,11 +119,33 @@ void Compiler::BeginScope() { current_->scope_depth_++; }
 void Compiler::EndScope() {
   current_->scope_depth_--;
 
-  while (current_->locals.size() > 0 &&
-         current_->locals.back().depth > current_->scope_depth_) {
+  while (current_->locals.size() > 0 && current_->locals.back().depth > current_->scope_depth_) {
     EmitByte(+OpCode::OP_POP);
     current_->locals.pop_back();
   }
+}
+
+void Compiler::BeginLoop() {
+  current_->loops.push_back(Loop{.start = (int)current_->function->chunk->Count()});
+  current_->loop_depth_++;
+}
+
+void Compiler::EndLoop() {
+  current_->loop_depth_--;
+  current_->loops.back().stop = (int)current_->function->chunk->Count();
+
+  // patch break
+  for (auto b : current_->loops.back().breaks) {
+    PatchJump(b);
+  }
+
+  // patch continue
+  // for (auto c : current_->loops.back().continues) {
+  //   // negative offset -> back
+  //   PatchJumpWithOffset(c, c - current_->loops.back().start);
+  // }
+
+  current_->loops.pop_back();
 }
 
 void Compiler::AddLocal(Token name) {
@@ -126,8 +158,7 @@ void Compiler::AddLocal(Token name) {
 }
 
 uint8_t Compiler::IdentifierConstant(Token* name) {
-  return MakeConstant(
-      vm_->AllocateString(std::string_view(name->start, name->length)));
+  return MakeConstant(vm_->AllocateString(std::string_view(name->start, name->length)));
 }
 
 bool Compiler::IdentifierEqual(Token* a, Token* b) {
@@ -156,25 +187,25 @@ void Compiler::MarkInitialized() {
 
 void Compiler::Synchronize() {
   parser_.panic_mode = false;
-  while (parser_.current.type != TokenType::TEOF) {
-    if (parser_.previous.type == TokenType::SEMICOLON) return;
+  while (parser_.current.type != TokenType::Eof) {
+    if (parser_.previous.type == TokenType::Semicolon) return;
 
     switch (parser_.current.type) {
-      case TokenType::CLASS:
+      case TokenType::Class:
         [[fallthrough]];
-      case TokenType::FUN:
+      case TokenType::Fun:
         [[fallthrough]];
-      case TokenType::VAR:
+      case TokenType::Var:
         [[fallthrough]];
-      case TokenType::FOR:
+      case TokenType::For:
         [[fallthrough]];
-      case TokenType::IF:
+      case TokenType::If:
         [[fallthrough]];
-      case TokenType::WHILE:
+      case TokenType::While:
         [[fallthrough]];
-      case TokenType::PRINT:
+      case TokenType::Print:
         [[fallthrough]];
-      case TokenType::RETURN:
+      case TokenType::Return:
         return;
 
       default:

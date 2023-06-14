@@ -11,8 +11,6 @@ void LineInfo::Append(int line) {
   }
 }
 
-LineInfo::~LineInfo() {}
-
 int LineInfo::GetLine(int offset) {
   int acc = 0;
   for (int i = 0; i < lines.size(); ++i) {
@@ -44,12 +42,12 @@ bool LineInfo::IsInSameLine(int offset1, int offset2) {
   assert(0);
 }
 
-void Chunk::Write(uint8_t byte, int line) {
+auto Chunk::Write(uint8_t byte, int line) -> void {
   code.push_back(byte);
   line_info.Append(line);
 }
 
-void Chunk::WriteConstant(Value value, int line) {
+auto Chunk::WriteConstant(Value value, int line) {
   int constant = AddConstant(value);
   if (constant < 256) {
     Write(static_cast<uint8_t>(OpCode::OP_CONSTANT), line);
@@ -68,9 +66,9 @@ void Chunk::WriteConstant(Value value, int line) {
   }
 }
 
-void Chunk::Disassemble(const char* name) { DisassembleChunk(this, name); }
+auto Chunk::Disassemble(const char* name) -> void { DisassembleChunk(this, name); }
 
-int Chunk::AddConstant(Value value) {
+auto Chunk::AddConstant(Value value) -> int {
   constants.push_back(value);
   return constants.size() - 1;
 }
