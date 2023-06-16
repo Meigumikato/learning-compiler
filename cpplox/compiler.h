@@ -59,6 +59,11 @@ class Compiler {
     std::vector<uint8_t> continues;
   };
 
+  struct Upvalue {
+    uint8_t index;
+    bool is_local;
+  };
+
   struct FuncScope {
     // ref
     FuncScope* enclosing{};
@@ -72,6 +77,7 @@ class Compiler {
 
     std::vector<Local> locals;
     std::vector<Loop> loops;
+    std::vector<Upvalue> upvalues;
 
     FuncScope(FunctionType type) : function(std::make_unique<Function>()), func_type(type) {
       Local local;
@@ -156,6 +162,10 @@ class Compiler {
   void MarkInitialized();
 
   int ResolveLocal(Token* name);
+
+  int AddUpvalue(uint8_t index, bool is_local);
+
+  int ResolveUpvalue(Token* name);
 
   void Synchronize();
 

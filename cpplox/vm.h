@@ -26,7 +26,7 @@ class VM {
   inline static constexpr int STACK_MAX = FRAMES_MAX * UINT8_MAX;
 
   struct CallFrame {
-    Function* function{};
+    Closure* closure{};
     std::vector<uint8_t>::iterator ip;
     std::vector<Value>::iterator slots;
   };
@@ -59,7 +59,8 @@ class VM {
 
   String* ReadString();
 
-  bool Call(Function* function, int arg_count);
+  bool Call(Closure* closure, int arg_count);
+
   bool CallNative(NativeFunction* function, int arg_count);
 
   bool CallValue(Value callee, int arg_count);

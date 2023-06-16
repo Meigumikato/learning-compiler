@@ -19,9 +19,7 @@ int FFI = []() -> int {
   return 10;
 }();
 
-VM::VM() : stack(8191), stack_top(stack.begin()), frames(256), frame_pointer_(frames.begin()) {
-  // DefineNativeFunction("unix", &Unix);
-}
+VM::VM() : stack(8191), stack_top(stack.begin()), frames(256), frame_pointer_(frames.begin()) {}
 
 InterpreteResult VM::Interpret(const char* source) {
   Compiler compiler(source, this);
@@ -34,15 +32,15 @@ InterpreteResult VM::Interpret(const char* source) {
 
   Push(function);
 
-  Call(function, 0);
+  Closure* closure = new Closure(function);
+
+  Pop();
+
+  Push(closure);
+
+  Call(closure, 0);
 
   return Run();
-  //
-  // Parser parser(source);
-  //
-  // parser.Parse();
-  //
-  // return InterpreteResult::Ok;
 }
 
 void VM::InsertObject(Object* object) {
@@ -62,23 +60,23 @@ void VM::RuntimeError(const char* format, ...) {
 
   for (int i = frames.size() - 1; i >= 0; --i) {
     auto frame = &frames[i];
-    auto function = frame->function;
+    auto closure = frame->closure;
 
-    size_t instruction = frame->ip - function->chunk->code.begin() - 1;
+    size_t instruction = frame->ip - closure->func->chunk->code.begin() - 1;
 
-    fprintf(stderr, "[line %d] in ", function->chunk->line_info.GetLine(instruction));
+    fprintf(stderr, "[line %d] in ", closure->func->chunk->line_info.GetLine(instruction));
 
-    if (function->name == nullptr) {
+    if (closure->func->name == nullptr) {
       fprintf(stderr, "script\n");
     } else {
-      fprintf(stderr, "%s()\n", function->name->GetCString());
+      fprintf(stderr, "%s()\n", closure->func->name->GetCString());
     }
   }
 
   auto frame = frame_pointer_ - 1;
 
-  auto instruction = frame->ip - frame->function->chunk->code.begin() - 1;
-  auto line = frame->function->chunk->line_info.GetLine(instruction);
+  auto instruction = frame->ip - frame->closure->func->chunk->code.begin() - 1;
+  auto line = frame->closure->func->chunk->line_info.GetLine(instruction);
 
   fprintf(stderr, "[line %d] in script", line);
 
@@ -99,22 +97,22 @@ static bool IsFalsey(Value value) {
          (std::holds_alternative<bool>(value) && !std::get<bool>(value));
 }
 
-bool VM::Call(Function* function, int arg_count) {
-  if (arg_count != function->arity) {
-    RuntimeError("Expected %d arguments but got %d", function->arity, arg_count);
+bool VM::Call(Closure* closure, int arg_count) {
+  if (arg_count != closure->func->arity) {
+    RuntimeError("Expected %d arguments but got %d", closure->func->arity, arg_count);
     return false;
   }
 
   auto frame = frame_pointer_++;
-  frame->function = function;
-  frame->ip = function->chunk->code.begin();
+  frame->closure = closure;
+  frame->ip = closure->func->chunk->code.begin();
   frame->slots = stack_top - arg_count - 1;
 
   return true;
 }
 
 bool VM::CallNative(NativeFunction* function, int arg_count) {
-  double result = function->native_functor(arg_count, std::addressof(*(stack_top - arg_count - 1)));
+  Value result = function->native_functor(arg_count, std::addressof(*(stack_top - arg_count - 1)));
 
   // auto frame = frame_pointer_ - 1;
   // frame->slots = stack_top - arg_count - 1;
@@ -130,7 +128,7 @@ bool VM::CallValue(Value callee, int arg_count) {
     auto obj = std::get<Object*>(callee);
     switch (obj->type) {
       case ObjectType::Function:
-        return Call(reinterpret_cast<Function*>(obj), arg_count);
+        return Call(reinterpret_cast<Closure*>(obj), arg_count);
       case ObjectType::NativeFunction:
         return CallNative(reinterpret_cast<NativeFunction*>(obj), arg_count);
       default:
@@ -157,7 +155,7 @@ uint16_t VM::ReadShort() {
 
 Value VM::ReadConstant() {
   auto frame = frame_pointer_ - 1;
-  return frame->function->chunk->constants[ReadByte()];
+  return frame->closure->func->chunk->constants[ReadByte()];
 }
 
 String* VM::ReadString() { return AsString(ReadConstant()); }
@@ -195,6 +193,12 @@ void BinaryOp(VM* vm) {
   }
 }
 
+Upvalue* CaptureUpvalue(Value* local) {
+  Upvalue* created = new Upvalue(local);
+
+  return created;
+}
+
 void VM::Debug() {
   printf("     stack        ");
   for (auto slot = stack.begin(); slot < stack_top; ++slot) {
@@ -208,8 +212,8 @@ void VM::Debug() {
 
   auto frame = frame_pointer_ - 1;
 
-  int diff = std::distance(frame->function->chunk->GetCodeBegin(), frame->ip);
-  disassembleInstruction(frame->function->chunk.get(), diff);
+  int diff = std::distance(frame->closure->func->chunk->GetCodeBegin(), frame->ip);
+  disassembleInstruction(frame->closure->func->chunk.get(), diff);
 }
 
 InterpreteResult VM::Run() {
@@ -382,6 +386,23 @@ InterpreteResult VM::Run() {
       case +OP_SET_LOCAL: {
         auto slot = ReadByte();
         current_frame->slots[slot] = Peek(0);
+        break;
+      }
+
+      case +OP_CLOSURE: {
+        Function* function = reinterpret_cast<Function*>(std::get<Object*>(ReadConstant()));
+        Closure* closure = new Closure(function);
+        Push(closure);
+        for (int i = 0; i < closure->upvalues.size(); i++) {
+          uint8_t is_local = ReadByte();
+          uint8_t index = ReadByte();
+
+          if (is_local) {
+            closure->upvalues[i] = CaptureUpvalue(&current_frame->slots[index]);
+          } else {
+            closure->upvalues[i] = current_frame->closure->upvalues[i];
+          }
+        }
         break;
       }
 

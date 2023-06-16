@@ -1,9 +1,13 @@
-#include <ios>
-#include <string_view>
+
+#include <ranges>
 
 #include "chunk.h"
 #include "compiler.h"
 #include "opcode.h"
+
+#ifdef __cpp_lib_ranges_enumerate
+#define nihao
+#endif  // !#ifndef __cpp_lib_ranges_enumerate
 
 void Compiler::Advance() {
   parser_.previous = parser_.current;
@@ -177,6 +181,48 @@ int Compiler::ResolveLocal(Token* name) {
     }
   }
 
+  return -1;
+}
+
+int Compiler::AddUpvalue(uint8_t index, bool is_local) {
+  for (auto& upvalue : current_->upvalues) {
+    if (index == upvalue.index && is_local == upvalue.is_local) {
+      return index;
+    }
+  }
+
+  current_->upvalues.push_back({index, is_local});
+
+  if (current_->upvalues.size() >= 255) {
+    Error("Too many closure variable in function");
+    return 0;
+  }
+
+  return current_->upvalues.size();
+}
+
+int Compiler::ResolveUpvalue(Token* name) {
+  if (current_->enclosing == nullptr) {
+    return -1;
+  }
+
+  auto temp = current_;
+  current_ = current_->enclosing;
+  // destory
+
+  int index = ResolveLocal(name);
+  if (index != -1) {
+    current_ = temp;
+    return AddUpvalue(index, true);
+  }
+
+  index = ResolveUpvalue(name);
+  if (index != -1) {
+    current_ = temp;
+    return AddUpvalue(index, false);
+  }
+
+  current_ = temp;
   return -1;
 }
 

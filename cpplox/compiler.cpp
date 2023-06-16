@@ -263,9 +263,15 @@ void Compiler::NamedVariable(Token name, bool can_assign) {
 
   int arg = ResolveLocal(&name);
   if (arg != -1) {
+    // local
     get_op = OpCode::OP_GET_LOCAL;
     set_op = OpCode::OP_SET_LOCAL;
+  } else if (ResolveUpvalue(&name) != -1) {
+    // upvalue
+    get_op = OpCode::OP_GET_UPVALUE;
+    set_op = OpCode::OP_SET_UPVALUE;
   } else {
+    // global
     arg = IdentifierConstant(&name);
     get_op = OpCode::OP_GET_GLOBAL;
     set_op = OpCode::OP_SET_GLOBAL;
@@ -432,7 +438,10 @@ void Compiler::ForStatement() {
   if (!Match(TokenType::RightParen)) {
     int body_jump = EmitJump(+OpCode::OP_JUMP);
     int increment_start = current_->function->chunk->Count();
+
+    // continue jump point
     current_->loops.back().start = increment_start;
+
     Expression();
     EmitByte(+OpCode::OP_POP);
     Consume(TokenType::RightParen, "Expect ')' after 'for' clause.");
@@ -490,7 +499,17 @@ void Compiler::FunctionStatement(FunctionType type) {
   BlockStatement();
 
   auto function = FinishCompile();
-  EmitBytes(+OpCode::OP_CONSTANT, MakeConstant(function.release()));
+
+  // function defination instruction (closure)
+  EmitBytes(+OpCode::OP_CLOSURE, MakeConstant(function.release()));
+
+  // function finish, add captured upvalue record
+  // EmitByte(+OpCode::OP_CLOSURE);
+
+  for (int i = 0; i < current_->upvalues.size(); ++i) {
+    EmitByte(current_->upvalues[i].is_local ? 1 : 0);
+    EmitByte(current_->upvalues[i].index);
+  }
 }
 
 void Compiler::PrintStatement() {

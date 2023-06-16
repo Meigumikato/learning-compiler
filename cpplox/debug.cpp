@@ -141,6 +141,12 @@ int disassembleInstruction(Chunk *chunk, int offset) {
     case +OP_SET_LOCAL:
       return ByteInstruction("OP_SET_LOCAL", chunk, offset);
 
+    case +OP_GET_UPVALUE:
+      return ByteInstruction("OP_GET_UPVALUE", chunk, offset);
+
+    case +OP_SET_UPVALUE:
+      return ByteInstruction("OP_SET_UPVALUE", chunk, offset);
+
     case +OP_JUMP:
       return JumpInstruction("OP_JUMP", 1, chunk, offset);
 

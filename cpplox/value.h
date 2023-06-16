@@ -16,6 +16,8 @@ enum class ObjectType {
   String,
   Function,
   NativeFunction,
+  Closure,
+  Upvalue,
 };
 
 struct Object {
@@ -64,10 +66,24 @@ struct Function : Object {
 using Nil = std::monostate;
 using Value = std::variant<Nil, bool, double, Object*>;
 
-using NativeFunctor = std::function<int(int argc, Value* argv)>;
+using NativeFunctor = std::function<Value(int argc, Value* argv)>;
 struct NativeFunction : Object {
   String* name{};
   NativeFunctor native_functor;
+};
+
+struct Upvalue : Object {
+  Value* location;
+
+  Upvalue(Value* slot) : location(slot) { type = ObjectType::Upvalue; }
+};
+
+struct Closure : Object {
+  Function* func;
+  std::vector<Upvalue*> upvalues;
+  // int upvalue_count;
+
+  Closure(Function* func) : func(func) { type = ObjectType::Closure; }
 };
 
 inline NativeFunction* NewNativeFunction(String* name, NativeFunctor functor) {

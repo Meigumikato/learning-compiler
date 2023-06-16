@@ -56,6 +56,11 @@ static void PrintObject(Object* obj) {
       printf("<native_fn %s>", function->name->GetCString());
       break;
     }
+
+    case ObjectType::Upvalue: {
+      printf("upvalue");
+      break;
+    }
     default:
       break;
   }
