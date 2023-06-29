@@ -15,6 +15,7 @@ class Compiler {
   struct Local {
     Token name;
     int depth{};
+    bool is_captured{};
   };
 
   struct Parser {
@@ -84,6 +85,7 @@ class Compiler {
       local.name.start = "";
       local.name.length = 0;
       local.depth = 0;
+      local.is_captured = false;
 
       locals.push_back(local);
     }

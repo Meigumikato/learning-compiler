@@ -51,6 +51,17 @@ static void PrintObject(Object* obj) {
       }
       break;
     }
+    case ObjectType::Closure: {
+      auto closure = reinterpret_cast<Closure*>(obj);
+      auto function = closure->func;
+
+      if (function->name == nullptr) {
+        printf("<script>");
+      } else {
+        printf("<fn %s -> %d>", function->name->GetCString(), function->arity);
+      }
+      break;
+    }
     case ObjectType::NativeFunction: {
       auto function = reinterpret_cast<NativeFunction*>(obj);
       printf("<native_fn %s>", function->name->GetCString());
@@ -61,6 +72,11 @@ static void PrintObject(Object* obj) {
       printf("upvalue");
       break;
     }
+
+    // case ObjectType::Upvalue: {
+    //   printf("upvalue");
+    //   break;
+    // }
     default:
       break;
   }

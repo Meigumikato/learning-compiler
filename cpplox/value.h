@@ -23,35 +23,28 @@ enum class ObjectType {
 struct Object {
   ObjectType type{};
   Object* next{};
+  bool is_marked{};
 };
 
 struct String : Object {
   size_t hash;
-  std::weak_ptr<std::string> content;
+  char* content;
+  int length;
 
   String() : Object() { type = ObjectType::String; }
 
   const char* GetCString() {
-    auto sp = content.lock();
-    if (sp == nullptr) {
-      abort();
-    }
-
-    return sp->c_str();
+    return content;
   }
 
   const std::string GetString() {
-    auto sp = content.lock();
-    if (sp == nullptr) {
-      abort();
-    }
-
-    return *sp;
+    return std::string(content, length);
   }
 };
 
 struct Function : Object {
   int arity{};
+  int upvalue_count{};
   std::unique_ptr<Chunk> chunk{};
   String* name{};
 
@@ -74,16 +67,20 @@ struct NativeFunction : Object {
 
 struct Upvalue : Object {
   Value* location;
+  Value closed;
 
-  Upvalue(Value* slot) : location(slot) { type = ObjectType::Upvalue; }
+  Upvalue* next;
+
+  Upvalue(Value* slot) : location(slot), closed(), next(nullptr) { type = ObjectType::Upvalue; }
 };
 
 struct Closure : Object {
   Function* func;
   std::vector<Upvalue*> upvalues;
-  // int upvalue_count;
 
-  Closure(Function* func) : func(func) { type = ObjectType::Closure; }
+  Closure(Function* func) : func(func), upvalues(func->upvalue_count) { 
+    type = ObjectType::Closure; 
+  }
 };
 
 inline NativeFunction* NewNativeFunction(String* name, NativeFunctor functor) {

@@ -1,12 +1,7 @@
 #include "compiler.h"
 
-#include <cstdio>
-#include <format>
-#include <string_view>
-
 #include "chunk.h"
 #include "common.h"
-#include "object.h"
 #include "opcode.h"
 #include "scanner.h"
 #include "value.h"
@@ -266,7 +261,7 @@ void Compiler::NamedVariable(Token name, bool can_assign) {
     // local
     get_op = OpCode::OP_GET_LOCAL;
     set_op = OpCode::OP_SET_LOCAL;
-  } else if (ResolveUpvalue(&name) != -1) {
+  } else if ((arg = ResolveUpvalue(&name)) != -1) {
     // upvalue
     get_op = OpCode::OP_GET_UPVALUE;
     set_op = OpCode::OP_SET_UPVALUE;
@@ -500,15 +495,15 @@ void Compiler::FunctionStatement(FunctionType type) {
 
   auto function = FinishCompile();
 
+  // // current function upvalue count
+  // current_->function->upvalue_count = current_->upvalues.size();
+
   // function defination instruction (closure)
   EmitBytes(+OpCode::OP_CLOSURE, MakeConstant(function.release()));
 
-  // function finish, add captured upvalue record
-  // EmitByte(+OpCode::OP_CLOSURE);
-
-  for (int i = 0; i < current_->upvalues.size(); ++i) {
-    EmitByte(current_->upvalues[i].is_local ? 1 : 0);
-    EmitByte(current_->upvalues[i].index);
+  for (auto& upvalue : new_func_scope.upvalues) {
+    EmitByte(upvalue.is_local ? 1 : 0);
+    EmitByte(upvalue.index);
   }
 }
 

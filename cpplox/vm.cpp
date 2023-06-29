@@ -1,5 +1,6 @@
 #include "vm.h"
 
+#include <cstdarg>
 #include <cstdio>
 #include <iterator>
 
@@ -19,7 +20,12 @@ int FFI = []() -> int {
   return 10;
 }();
 
-VM::VM() : stack(8191), stack_top(stack.begin()), frames(256), frame_pointer_(frames.begin()) {}
+VM::VM()
+    : stack(8191),
+      stack_top(stack.begin()),
+      frames(256),
+      frame_pointer_(frames.begin()),
+      open_upvalues(nullptr) {}
 
 InterpreteResult VM::Interpret(const char* source) {
   Compiler compiler(source, this);
@@ -127,10 +133,11 @@ bool VM::CallValue(Value callee, int arg_count) {
   if (std::holds_alternative<Object*>(callee)) {
     auto obj = std::get<Object*>(callee);
     switch (obj->type) {
-      case ObjectType::Function:
+      case ObjectType::Closure:
         return Call(reinterpret_cast<Closure*>(obj), arg_count);
       case ObjectType::NativeFunction:
         return CallNative(reinterpret_cast<NativeFunction*>(obj), arg_count);
+
       default:
         break;
     }
@@ -194,9 +201,40 @@ void BinaryOp(VM* vm) {
 }
 
 Upvalue* CaptureUpvalue(Value* local) {
-  Upvalue* created = new Upvalue(local);
+  Upvalue* pre_upvalue = nullptr;
+  auto upvalue = VM::GetInstance()->open_upvalues;
 
-  return created;
+  while (upvalue != nullptr && upvalue->location > local) {
+    pre_upvalue = upvalue;
+    upvalue = upvalue->next;
+  }
+
+  if (upvalue != nullptr && upvalue->location == local) {
+    return upvalue;
+  }
+
+  Upvalue* created_upvalue = new Upvalue(local);
+
+  created_upvalue->next = upvalue;
+
+  if (pre_upvalue == nullptr) {
+    VM::GetInstance()->open_upvalues = created_upvalue;
+  } else {
+    pre_upvalue->next = created_upvalue;
+  }
+
+  return created_upvalue;
+}
+
+void CloseUpValue(Value* last) {
+  auto open_upvalues = VM::GetInstance()->open_upvalues;
+
+  while (open_upvalues != nullptr && open_upvalues->location >= last) {
+    auto upvalue = open_upvalues;
+    upvalue->closed = *upvalue->location;
+    upvalue->location = &upvalue->closed;
+    open_upvalues = open_upvalues->next;
+  }
 }
 
 void VM::Debug() {
@@ -292,6 +330,7 @@ InterpreteResult VM::Run() {
 
       case +OP_RETURN: {
         auto result = Pop();
+        CloseUpValue(current_frame->slots.base());
         frame_pointer_--;
 
         if (frame_pointer_ == frames.begin()) {
@@ -386,6 +425,24 @@ InterpreteResult VM::Run() {
       case +OP_SET_LOCAL: {
         auto slot = ReadByte();
         current_frame->slots[slot] = Peek(0);
+        break;
+      }
+
+      case +OP_SET_UPVALUE: {
+        auto slot = ReadByte();
+        *current_frame->closure->upvalues[slot]->location = Peek(0);
+        break;
+      }
+
+      case +OP_GET_UPVALUE: {
+        auto slot = ReadByte();
+        Push(*current_frame->closure->upvalues[slot]->location);
+        break;
+      }
+
+      case +OP_CLOSE_UPVALUE: {
+        CloseUpValue((stack_top - 1).base());
+        Pop();
         break;
       }
 

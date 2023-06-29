@@ -55,7 +55,7 @@ static char* ReadFile(const char* path) {
 static void RunFile(const char* path) {
   char* source = ReadFile(path);
   auto res = VM::GetInstance()->Interpret(source);
-  free(source);
+  delete [] source;
 
   if (res == InterpreteResult::CompilerError) exit(65);
   if (res == InterpreteResult::RuntimeError) exit(70);

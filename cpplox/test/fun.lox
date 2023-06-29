@@ -1,1 +1,19 @@
-fun test() { var a = 10; fun inner() { print a + 1;} return inner;} var x = test(); print x();
+// fun test() { var a = 10; fun inner() { print a + 1;} return inner;} var x = test(); print x();
+// fun outer() { var x = "outside"; fun inner() { print x; } inner(); } outer();
+
+var globalSet; 
+var globalGet;
+
+fun main() {
+  var a = "initial";
+
+  fun set() { a = "updated"; }
+  fun get() { print a; }
+
+  globalSet = set;
+  globalGet = get;
+}
+
+main();
+globalSet();
+globalGet();

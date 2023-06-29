@@ -162,6 +162,30 @@ int disassembleInstruction(Chunk *chunk, int offset) {
     case +OP_CALL:
       return ByteInstruction("OP_CALL", chunk, offset);
 
+    case +OP_CLOSURE: {
+      offset++;
+      uint8_t constant = chunk->code[offset++];
+      printf("%-16s %4d ", "OP_CLOSURE", constant);
+      PrintValue(chunk->constants[constant]);
+      printf("\n");
+
+
+      Function* function = reinterpret_cast<Function*>(std::get<Object*>(chunk->constants[constant]));
+
+      for (int i = 0; i < function->upvalue_count; ++i) {
+        int is_local = chunk->code[offset++];
+        int index = chunk->code[offset++];
+
+        printf("%012d    |                        %s %d\n", 
+               offset - 2, is_local ? "local" : "upvalue", index);
+      }
+
+      return offset;
+    }
+      
+    case +OP_CLOSE_UPVALUE:
+      return SimpleInstruction("OP_CLOSE_UPVALUE", offset);
+
     default:
       printf("Unknow opcode %d\n", instruction);
       return offset + 1;

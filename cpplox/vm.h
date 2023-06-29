@@ -1,7 +1,6 @@
 #pragma once
 
-#include <_types/_uint8_t.h>
-
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -39,10 +38,12 @@ class VM {
   Object* objects{};
 
   std::unordered_map<size_t, Value> globals;
-  std::unordered_map<size_t, std::shared_ptr<std::string>> strings;
+  std::unordered_map<size_t, String*> strings;
 
   std::vector<CallFrame> frames;
   std::vector<CallFrame>::iterator frame_pointer_;
+
+  Upvalue* open_upvalues;
 
   InterpreteResult Run();
 
@@ -86,12 +87,13 @@ class VM {
     size_t hash = std::hash<std::string_view>{}(str);
 
     if (!strings.contains(hash)) {
-      strings[hash] = std::make_shared<std::string>(str);
+      return strings[hash];
     }
 
-    String* string = new String();
-    string->content = strings[hash];
-    string->hash = hash;
+    String* string = new String;
+    string->content = new char[str.length() + 1];
+    std::copy(str.begin(), str.end(), string->content);
+    string->content[str.length()] = '\0';
 
     InsertObject(string);
 

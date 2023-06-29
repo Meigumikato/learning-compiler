@@ -1,7 +1,9 @@
 
+#include <functional>
 #include <ranges>
 
 #include "chunk.h"
+#include "common.h"
 #include "compiler.h"
 #include "opcode.h"
 
@@ -124,7 +126,12 @@ void Compiler::EndScope() {
   current_->scope_depth_--;
 
   while (current_->locals.size() > 0 && current_->locals.back().depth > current_->scope_depth_) {
-    EmitByte(+OpCode::OP_POP);
+
+    if (current_->locals.back().is_captured) {
+      EmitByte(+OpCode::OP_CLOSE_UPVALUE);
+    } else {
+      EmitByte(+OpCode::OP_POP);
+    }
     current_->locals.pop_back();
   }
 }
@@ -158,7 +165,7 @@ void Compiler::AddLocal(Token name) {
     return;
   }
 
-  current_->locals.push_back(Local{.name = name, .depth = -1});
+  current_->locals.push_back(Local{.name = name, .depth = -1, .is_captured = false});
 }
 
 uint8_t Compiler::IdentifierConstant(Token* name) {
@@ -198,28 +205,33 @@ int Compiler::AddUpvalue(uint8_t index, bool is_local) {
     return 0;
   }
 
-  return current_->upvalues.size();
+  current_->function->upvalue_count = current_->upvalues.size();
+
+  // index
+  return current_->upvalues.size() - 1;
 }
 
 int Compiler::ResolveUpvalue(Token* name) {
-  if (current_->enclosing == nullptr) {
-    return -1;
-  }
+  if (current_->enclosing == nullptr) return -1;
 
   auto temp = current_;
   current_ = current_->enclosing;
-  // destory
+
 
   int index = ResolveLocal(name);
   if (index != -1) {
+    current_->locals[index].is_captured = true;
+
     current_ = temp;
-    return AddUpvalue(index, true);
+    int idx = AddUpvalue(index, true);
+    return idx;
   }
 
   index = ResolveUpvalue(name);
   if (index != -1) {
     current_ = temp;
-    return AddUpvalue(index, false);
+    int idx = AddUpvalue(index, false);
+    return idx;
   }
 
   current_ = temp;

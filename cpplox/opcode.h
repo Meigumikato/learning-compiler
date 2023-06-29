@@ -34,6 +34,8 @@ enum class OpCode : uint8_t {
   OP_SET_UPVALUE,
   OP_GET_UPVALUE,
 
+  OP_CLOSE_UPVALUE,
+
   OP_JUMP,
   OP_JUMP_IF_FALSE,
   OP_JUMP_IF_LESS,
